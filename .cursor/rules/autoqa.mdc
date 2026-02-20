@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+# AutoQA - Visual QA Agent
+
+This is a framework-agnostic Autonomous QA Agent that captures screenshots, analyzes UI with Gemini, and performs mouse/keyboard actions.
+
+## Project Structure
+
+- [PROJECT_SPEC.md](mdc:PROJECT_SPEC.md) - Full specification document
+- `backend/` - Python FastAPI server
+  - `main.py` - FastAPI app with `/windows` and `/act` endpoints
+  - `vision.py` - Gemini integration for UI element detection
+  - `actions.py` - Mouse/keyboard actions (click, type, scroll)
+  - `windows.py` - Window management (list windows, get bounds)
+- `frontend/` - Electron + React app (Phase 2)
+
+## Key Technical Rules
+
+### Coordinate Math (CRITICAL)
+Gemini returns `[ymin, xmin, ymax, xmax]` in 0-1000 scale. Always:
+1. Calculate center point: `center_x = (xmin + xmax) / 2`
+2. Convert to window pixels: `local_x = (center_x / 1000) * window_width`
+3. Apply Retina scale factor: `global_x = window_left + (local_x / scale_factor)`
+
+### Human Click Pattern
+Never use instant clicks. Always use:
+```python
+pyautogui.moveTo(x, y, duration=0.2)
+pyautogui.mouseDown()
+time.sleep(0.1)
+pyautogui.mouseUp()
+```
+
+### Screenshots
+Use `mss` library, NOT `pyautogui.screenshot()` - it's faster and handles multi-monitor better.
+
+### macOS Permissions
+App requires "Screen Recording" and "Accessibility" permissions.
+
+## API Endpoints
+
+- `GET /windows` - List open windows with bounds
+- `POST /act` - Execute action (click/type/scroll) on target window
