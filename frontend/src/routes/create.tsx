@@ -36,13 +36,15 @@ import {
   generateTestPlan,
   approveAndGenerateTests,
   executeTestsStream,
+  provideGuidance,
   getWindows,
   BuildContextResponse,
   TestCase,
   TestPlanResponse,
   WindowInfo,
   TestStartEvent,
-  StepCompleteEvent,
+  StepEvent,
+  NeedHelpEvent,
   TestCompleteEvent,
   SuiteCompleteEvent,
 } from '../api/client';
@@ -94,13 +96,15 @@ function CreateTestPage() {
   const [isLoadingWindows, setIsLoadingWindows] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentTest, setCurrentTest] = useState<TestStartEvent | null>(null);
-  const [currentStep, setCurrentStep] = useState<StepCompleteEvent | null>(null);
+  const [currentStep, setCurrentStep] = useState<StepEvent | null>(null);
+  const [needsHelp, setNeedsHelp] = useState<NeedHelpEvent | null>(null);
+  const [guidanceText, setGuidanceText] = useState('');
   const [executionResults, setExecutionResults] = useState<{
     passed: number;
     failed: number;
     skipped: number;
     total: number;
-    testResults: Array<{test_id: string; status: string; title?: string}>;
+    testResults: Array<{test_id: string; status: string; title?: string; conclusion?: string}>;
   } | null>(null);
   const [executionError, setExecutionError] = useState<string | null>(null);
   
@@ -299,13 +303,15 @@ function CreateTestPage() {
     setExecutionResults(null);
     setCurrentTest(null);
     setCurrentStep(null);
+    setNeedsHelp(null);
+    setGuidanceText('');
     
-    const testResults: Array<{test_id: string; status: string; title?: string}> = [];
+    const testResults: Array<{test_id: string; status: string; title?: string; conclusion?: string}> = [];
     
     try {
       await executeTestsStream(
         contextId,
-        { window_title: selectedWindow },
+        { window_title: selectedWindow, provider: 'claude' },
         {
           onSuiteStart: (data) => {
             console.log('Suite started:', data);
@@ -313,18 +319,23 @@ function CreateTestPage() {
           onTestStart: (data) => {
             setCurrentTest(data);
             setCurrentStep(null);
+            setNeedsHelp(null);
+            setGuidanceText('');
           },
-          onStepStart: (data) => {
-            // Could add step-level UI updates here
-          },
-          onStepComplete: (data) => {
+          onStep: (data) => {
             setCurrentStep(data);
+            setNeedsHelp(null);  // Clear help request if step progresses
+          },
+          onNeedHelp: (data) => {
+            setNeedsHelp(data);
+            console.log('Agent needs help:', data);
           },
           onTestComplete: (data) => {
             testResults.push({
               test_id: data.test_id,
               status: data.status,
-              title: currentTest?.title
+              title: currentTest?.title,
+              conclusion: data.conclusion,
             });
             setCurrentTest(null);
           },
@@ -351,6 +362,20 @@ function CreateTestPage() {
     } catch (err) {
       setExecutionError(String(err));
       setIsExecuting(false);
+    }
+  };
+
+  const handleProvideGuidance = async () => {
+    if (!contextId || !needsHelp || !guidanceText.trim()) return;
+    
+    try {
+      await provideGuidance(contextId, needsHelp.test_id, guidanceText);
+      setGuidanceText('');
+      setNeedsHelp(null);
+      // Execution will continue automatically with the guidance
+    } catch (err) {
+      console.error('Failed to provide guidance:', err);
+      setExecutionError(String(err));
     }
   };
 
@@ -1128,26 +1153,78 @@ function CreateTestPage() {
                       <span className="text-xs text-void-500 font-mono">{currentTest.test_id}</span>
                     </div>
                     
+                    {currentTest.goal && (
+                      <div className="text-xs text-void-400 mb-2 whitespace-pre-wrap">
+                        {currentTest.goal}
+                      </div>
+                    )}
+                    
                     {currentStep && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          currentStep.phase === 'setup' ? 'bg-blue-500/20 text-blue-400' :
-                          currentStep.phase === 'cleanup' ? 'bg-amber-500/20 text-amber-400' :
-                          'bg-plasma-500/20 text-plasma-400'
-                        }`}>
-                          {currentStep.phase}
-                        </span>
-                        <span className="text-void-400">Step {currentStep.step_number}:</span>
-                        <span className="text-void-200">{currentStep.action}</span>
-                        <span className="text-void-500">→</span>
-                        <span className="text-void-300 truncate">{currentStep.target}</span>
-                        {currentStep.success ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-void-400">Step {currentStep.step_number}:</span>
+                          <span className="text-void-200">{currentStep.action}</span>
+                          {currentStep.target && (
+                            <>
+                              <span className="text-void-500">→</span>
+                              <span className="text-void-300 truncate">{currentStep.target}</span>
+                            </>
+                          )}
+                          {currentStep.success !== undefined && (
+                            currentStep.success ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                            ) : (
+                              <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                            )
+                          )}
+                        </div>
+                        {currentStep.reasoning && (
+                          <div className="text-xs text-void-500 italic pl-4">
+                            {currentStep.reasoning}
+                          </div>
+                        )}
+                        {currentStep.current_state && (
+                          <div className="text-xs text-void-400 pl-4">
+                            State: {currentStep.current_state}
+                          </div>
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Agent Needs Help */}
+                {needsHelp && (
+                  <div className="bg-amber-500/10 rounded-lg p-4 mb-4 border border-amber-500/30">
+                    <div className="flex items-start gap-3 mb-3">
+                      <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="text-amber-400 font-medium mb-1">Agent Needs Help</h4>
+                        <p className="text-void-300 text-sm mb-2">{needsHelp.question}</p>
+                        {needsHelp.current_state && (
+                          <p className="text-void-400 text-xs mb-3">
+                            Current state: {needsHelp.current_state}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <textarea
+                        value={guidanceText}
+                        onChange={(e) => setGuidanceText(e.target.value)}
+                        placeholder="Provide guidance to help the agent continue..."
+                        className="w-full bg-void-900/50 border border-void-700 rounded-lg px-3 py-2 text-sm text-void-200 placeholder-void-500 focus:outline-none focus:border-amber-500/50"
+                        rows={3}
+                      />
+                      <button
+                        onClick={handleProvideGuidance}
+                        disabled={!guidanceText.trim()}
+                        className="w-full py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-void-700 disabled:text-void-500 text-white font-medium rounded-lg transition-colors"
+                      >
+                        Provide Guidance & Continue
+                      </button>
+                    </div>
                   </div>
                 )}
                 
@@ -1238,16 +1315,23 @@ function CreateTestPage() {
                 {executionResults.testResults.length > 0 && (
                   <div className="bg-void-900/50 rounded-lg p-4 mb-6 text-left max-w-md mx-auto">
                     {executionResults.testResults.map((result, idx) => (
-                      <div key={idx} className="flex items-center gap-2 py-1">
-                        {result.status === 'passed' ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-400" />
-                        ) : result.status === 'failed' ? (
-                          <XCircle className="w-4 h-4 text-red-400" />
-                        ) : (
-                          <Clock className="w-4 h-4 text-amber-400" />
+                      <div key={idx} className="py-2 border-b border-void-800 last:border-0">
+                        <div className="flex items-center gap-2">
+                          {result.status === 'passed' ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          ) : result.status === 'failed' ? (
+                            <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          ) : (
+                            <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          )}
+                          <span className="text-void-500 text-xs font-mono">{result.test_id}</span>
+                          <span className="text-void-300 text-sm truncate">{result.title}</span>
+                        </div>
+                        {result.conclusion && (
+                          <p className="text-xs text-void-400 mt-1 ml-6 italic">
+                            {result.conclusion}
+                          </p>
                         )}
-                        <span className="text-void-500 text-xs font-mono">{result.test_id}</span>
-                        <span className="text-void-300 text-sm truncate">{result.title}</span>
                       </div>
                     ))}
                   </div>

@@ -29,7 +29,7 @@ class WindowResolverAgent(BaseAgent):
     
     Usage:
         agent = WindowResolverAgent()
-        windows = [{"title": "Slack - Myntra", "app_name": "Slack"}, ...]
+        windows = [{"title": "Slack", "app_name": "Slack"}, ...]
         result = agent.resolve("message John hi in slack", windows)
         if result:
             print(f"Use window: {result.window_title}")

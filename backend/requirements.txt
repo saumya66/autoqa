@@ -17,15 +17,18 @@ pygetwindow==0.0.9; sys_platform == "win32"
 pyobjc-framework-Quartz==10.1; sys_platform == "darwin"
 pyobjc-framework-ApplicationServices==10.1; sys_platform == "darwin"
 
-# HTTP Client (for Gemini API)
-requests==2.31.0
+# Google Gemini SDK
+google-genai
+
+# Anthropic Claude SDK
+anthropic
 
 # Document Processing
 PyMuPDF==1.24.0
 python-docx==1.1.0
 
 # Video Processing
-opencv-python==4.9.0.80
+opencv-python>=4.10
 
 # Environment
 python-dotenv==1.0.1

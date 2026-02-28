@@ -57,11 +57,6 @@ class ContextBuilder:
     
     def __init__(self):
         self._contexts: dict[str, FeatureContext] = {}
-        self._image_agent = ImageContextRetrieverAgent()
-        self._document_agent = DocumentContextRetrieverAgent()
-        self._video_agent = VideoContextRetrieverAgent()
-        self._test_planner = TestPlannerAgent()
-        self._test_generator = TestGeneratorAgent()
         
         # Ensure data directories exist
         DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -348,7 +343,7 @@ class ContextBuilder:
     # PROCESSING - Process all pending items
     # =========================================================================
     
-    def _process_pending_items(self, context: FeatureContext) -> None:
+    def _process_pending_items(self, context: FeatureContext, provider: str = "claude") -> None:
         """Process all unprocessed items in a context using AI agents."""
         pending_items = [item for item in context.items if not item.processed]
         
@@ -363,33 +358,33 @@ class ContextBuilder:
         ]
         user_feedback = ""
         if feedback_items:
-            # Get the most recent feedback
             latest_feedback = max(feedback_items, key=lambda x: x.extracted.get("timestamp", 0))
             user_feedback = latest_feedback.extracted.get("text", "")
             print(f"[ContextBuilder] Using user feedback for reprocessing: {user_feedback[:100]}...")
         
-        print(f"[ContextBuilder] Processing {len(pending_items)} pending items...")
+        image_agent = ImageContextRetrieverAgent(provider=provider)
+        document_agent = DocumentContextRetrieverAgent(provider=provider)
+        video_agent = VideoContextRetrieverAgent(provider=provider)
+        
+        print(f"[ContextBuilder] Processing {len(pending_items)} pending items (provider={provider})...")
         
         for item in pending_items:
             try:
                 if item.type == ContextType.IMAGE:
-                    self._process_image(context.id, item, user_feedback)
+                    self._process_image(context.id, item, user_feedback, image_agent)
                 elif item.type == ContextType.DOCUMENT:
-                    self._process_document(context.id, item, user_feedback)
+                    self._process_document(context.id, item, user_feedback, document_agent)
                 elif item.type == ContextType.VIDEO:
-                    self._process_video(context.id, item, user_feedback)
-                # TEXT items are already processed
+                    self._process_video(context.id, item, user_feedback, video_agent)
             except Exception as e:
                 print(f"[ContextBuilder] Error processing {item.source_name}: {e}")
                 item.extracted["error"] = str(e)
-                item.processed = True  # Mark as processed even if failed
+                item.processed = True
         
-        # Save updated context
         self._save_context(context)
     
-    def _process_image(self, context_id: str, item: ContextItem, user_feedback: str = "") -> None:
+    def _process_image(self, context_id: str, item: ContextItem, user_feedback: str = "", agent=None) -> None:
         """Process a single image item with AI."""
-        # Load raw file
         extension = Path(item.source_name).suffix or ".png"
         raw_bytes = self._load_raw_file(context_id, item.id, extension)
         
@@ -399,17 +394,17 @@ class ContextBuilder:
         print(f"[ContextBuilder] Processing image: {item.source_name}")
         additional_context = item.extracted.get("additional_context", "")
         
-        # Combine additional context with user feedback
         if user_feedback:
             if additional_context:
                 additional_context = f"{additional_context}\n\nUser Feedback/Corrections: {user_feedback}"
             else:
                 additional_context = f"User Feedback/Corrections: {user_feedback}"
         
-        result = self._image_agent.process(raw_bytes, additional_context)
+        if agent is None:
+            agent = ImageContextRetrieverAgent()
+        result = agent.process(raw_bytes, additional_context)
         
         if result:
-            # Keep additional_context if it was set
             if additional_context:
                 result["additional_context"] = additional_context
             item.extracted = result
@@ -418,9 +413,8 @@ class ContextBuilder:
             item.extracted["error"] = "AI processing failed"
             item.processed = True
     
-    def _process_document(self, context_id: str, item: ContextItem, user_feedback: str = "") -> None:
+    def _process_document(self, context_id: str, item: ContextItem, user_feedback: str = "", agent=None) -> None:
         """Process a single document item with AI."""
-        # Load raw file
         extension = f".{item.file_type}" if item.file_type else Path(item.source_name).suffix
         raw_bytes = self._load_raw_file(context_id, item.id, extension)
         
@@ -430,14 +424,15 @@ class ContextBuilder:
         print(f"[ContextBuilder] Processing document: {item.source_name}")
         additional_context = item.extracted.get("additional_context", "")
         
-        # Combine additional context with user feedback
         if user_feedback:
             if additional_context:
                 additional_context = f"{additional_context}\n\nUser Feedback/Corrections: {user_feedback}"
             else:
                 additional_context = f"User Feedback/Corrections: {user_feedback}"
         
-        result = self._document_agent.process(
+        if agent is None:
+            agent = DocumentContextRetrieverAgent()
+        result = agent.process(
             raw_bytes, 
             item.file_type or "txt",
             additional_context
@@ -452,9 +447,8 @@ class ContextBuilder:
             item.extracted["error"] = "AI processing failed"
             item.processed = True
     
-    def _process_video(self, context_id: str, item: ContextItem, user_feedback: str = "") -> None:
+    def _process_video(self, context_id: str, item: ContextItem, user_feedback: str = "", agent=None) -> None:
         """Process a single video item with AI."""
-        # Load raw file
         extension = Path(item.source_name).suffix or ".mp4"
         raw_bytes = self._load_raw_file(context_id, item.id, extension)
         
@@ -464,14 +458,15 @@ class ContextBuilder:
         print(f"[ContextBuilder] Processing video: {item.source_name}")
         additional_context = item.extracted.get("additional_context", "")
         
-        # Combine additional context with user feedback
         if user_feedback:
             if additional_context:
                 additional_context = f"{additional_context}\n\nUser Feedback/Corrections: {user_feedback}"
             else:
                 additional_context = f"User Feedback/Corrections: {user_feedback}"
         
-        result = self._video_agent.process(raw_bytes, additional_context)
+        if agent is None:
+            agent = VideoContextRetrieverAgent()
+        result = agent.process(raw_bytes, additional_context)
         
         if result:
             if additional_context:
@@ -486,16 +481,14 @@ class ContextBuilder:
     # CONTEXT BUILDING - Process all items and generate summary
     # =========================================================================
     
-    def build_context(self, context_id: str, user_feedback: str = "") -> Optional[dict]:
+    def build_context(self, context_id: str, user_feedback: str = "", provider: str = "claude") -> Optional[dict]:
         """
         Process all uploaded items and build the unified context.
-        
-        This method processes all pending items (images, docs, videos) and
-        returns a summary of what the AI understood about the feature.
         
         Args:
             context_id: The context ID to build.
             user_feedback: Optional feedback/corrections from the user to improve context.
+            provider: AI provider to use ('claude' or 'gemini').
         """
         context = self._contexts.get(context_id)
         if not context:
@@ -528,7 +521,7 @@ class ContextBuilder:
         print(f"[ContextBuilder] === Building context for: {context.name} ===")
         if user_feedback:
             print(f"[ContextBuilder] Reprocessing with user feedback...")
-        self._process_pending_items(context)
+        self._process_pending_items(context, provider=provider)
         
         # Build summary of what was understood
         summary = self._build_context_summary(context)
@@ -639,7 +632,7 @@ class ContextBuilder:
     # TEST GENERATION
     # =========================================================================
     
-    def generate_test_plan(self, context_id: str) -> Optional[dict]:
+    def generate_test_plan(self, context_id: str, provider: str = "claude") -> Optional[dict]:
         """
         Generate text-based test cases for user review.
         
@@ -663,7 +656,8 @@ class ContextBuilder:
         self._save_context(context)
         
         context_dict = context.to_dict()
-        test_plan = self._test_planner.generate_from_feature_context(context_dict)
+        test_planner = TestPlannerAgent(provider=provider)
+        test_plan = test_planner.generate_from_feature_context(context_dict)
         
         if not test_plan:
             context.status = "draft"
@@ -692,8 +686,8 @@ class ContextBuilder:
         
         return result
     
-    def approve_and_generate_executable(self, context_id: str, approved_test_ids: list = None) -> Optional[dict]:
-        """After user approves, generate executable JSON test steps."""
+    def approve_tests(self, context_id: str, approved_test_ids: list = None) -> Optional[dict]:
+        """Mark test cases as approved (ready for execution)."""
         context = self._contexts.get(context_id)
         if not context:
             raise ValueError(f"Context not found: {context_id}")
@@ -714,45 +708,20 @@ class ContextBuilder:
             test_cases = [tc for tc in test_cases if tc.get("id") in approved_test_ids]
         
         if not test_cases:
-            raise ValueError("No test cases to generate.")
+            raise ValueError("No test cases to approve.")
         
-        print(f"[ContextBuilder] Converting {len(test_cases)} approved tests to executable format...")
+        print(f"[ContextBuilder] Approving {len(test_cases)} test cases...")
         
-        context.status = "generating_executable"
-        self._save_context(context)
-        
-        # Build UI context from processed images
-        ui_context_parts = []
-        for item in context.items:
-            if item.type == ContextType.IMAGE and item.processed:
-                elements = item.extracted.get("elements", [])
-                if elements:
-                    ui_context_parts.append(f"Screen: {item.source_name}")
-                    for elem in elements[:15]:
-                        ui_context_parts.append(f"  - {elem.get('type', 'element')}: {elem.get('label', '')}")
-        
-        ui_context = "\n".join(ui_context_parts)
-        
-        executable_tests = self._test_generator.convert_all_test_cases(
-            test_cases,
-            ui_context
-        )
-        
-        # Generate test suite summary
-        test_suite_summary = self._test_generator.generate_test_suite_summary(executable_tests)
-        
+        # Mark tests as approved (no JSON generation needed)
         test_data["status"] = "approved"
         test_data["test_cases"] = test_cases
-        test_data["executable_tests"] = executable_tests
-        test_data["test_suite_summary"] = test_suite_summary
         
         context.status = "ready"
         self._save_context(context)
         
         with open(tests_path, "w", encoding="utf-8") as f:
             json.dump(test_data, f, indent=2, ensure_ascii=False)
-        print(f"[ContextBuilder] Saved executable tests to {tests_path}")
-        print(f"[ContextBuilder] Test Suite: {test_suite_summary['total_tests']} tests, {test_suite_summary['total_steps']} steps, ~{test_suite_summary['estimated_total_minutes']} min")
+        print(f"[ContextBuilder] ✓ Approved {len(test_cases)} test cases. Ready for execution.")
         
         return test_data
     

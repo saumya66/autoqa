@@ -157,7 +157,19 @@ ACTION TYPES:
 - scroll: Scroll the page. Specify target (area) and value (up/down/left/right).
 - wait: Wait for something to load. Specify value (seconds, default 1).
 - done: Goal is complete! Set goal_complete to true.
-- stuck: Cannot proceed. Explain in reasoning.
+- stuck: Cannot proceed and need human help. Explain clearly what you see and what's confusing.
+
+ASKING FOR HUMAN HELP:
+When you are stuck or unsure about what to do:
+1. Set action to "stuck"
+2. In "reasoning", clearly describe:
+   - What you currently see on the screen
+   - What you're trying to achieve
+   - What's confusing or blocking you
+   - Ask a SPECIFIC question about what to do next
+3. Example: "I see a search results page with many 'Add' buttons. I need to add a product to bag, but I'm not sure which product to add. Should I click the first visible 'Add' button, or should I scroll to find a specific product?"
+
+The human will provide guidance, and you can resume execution with that context.
 
 CRITICAL RULES:
 1. ALWAYS verify you're in the RIGHT CONTEXT before acting!

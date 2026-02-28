@@ -2,7 +2,7 @@
 Vision Module for AutoQA
 
 Handles Gemini AI integration for UI element detection.
-Uses direct HTTP requests to Gemini API (no SDK).
+Uses the official google-genai SDK.
 """
 
 import base64
@@ -13,30 +13,12 @@ from dataclasses import dataclass
 from io import BytesIO
 from typing import Optional
 
-import requests
+from google import genai
+from google.genai import types
 from PIL import Image, ImageDraw
 
 
-# Gemini API Configuration
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-DEFAULT_MODEL = "gemini-2.0-flash"
-
-
-@dataclass
-class GeminiConfig:
-    """Configuration for Gemini API."""
-    api_key: str
-    base_url: str = GEMINI_BASE_URL
-    model: str = DEFAULT_MODEL
-    
-    @property
-    def endpoint(self) -> str:
-        """Get the full API endpoint URL."""
-        return f"{self.base_url}/{self.model}:generateContent"
-
-
-# Global config - set via configure_gemini()
-_gemini_config: Optional[GeminiConfig] = None
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 @dataclass
@@ -63,20 +45,23 @@ class DetectionResult:
         return self.box_2d[3]
 
 
+# Global client - set via configure_gemini()
+_client: Optional[genai.Client] = None
+_model: str = DEFAULT_MODEL
+
+
 def configure_gemini(
     api_key: Optional[str] = None,
     model: str = DEFAULT_MODEL,
-    base_url: str = GEMINI_BASE_URL
 ) -> None:
     """
-    Configure the Gemini API.
+    Configure the Gemini client.
     
     Args:
         api_key: API key. If None, reads from GEMINI_API_KEY env var.
-        model: Model name (default: gemini-2.0-flash).
-        base_url: Base URL for the API.
+        model: Model name (default: gemini-3-flash-preview).
     """
-    global _gemini_config
+    global _client, _model
     
     key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
@@ -84,18 +69,15 @@ def configure_gemini(
             "GEMINI_API_KEY not found. Set it in .env or pass directly."
         )
     
-    _gemini_config = GeminiConfig(
-        api_key=key,
-        model=model,
-        base_url=base_url
-    )
+    _client = genai.Client(api_key=key)
+    _model = model
 
 
-def get_gemini_config() -> GeminiConfig:
-    """Get the current Gemini configuration."""
-    if _gemini_config is None:
+def _get_client() -> genai.Client:
+    """Get the current Gemini client."""
+    if _client is None:
         raise ValueError("Gemini not configured. Call configure_gemini() first.")
-    return _gemini_config
+    return _client
 
 
 def detect_element(
@@ -114,68 +96,30 @@ def detect_element(
     Returns:
         DetectionResult if element found, None otherwise.
     """
-    config = get_gemini_config()
-    
-    # Use provided model or fall back to config
-    if model_name:
-        endpoint = f"{config.base_url}/{model_name}:generateContent"
-    else:
-        endpoint = config.endpoint
-    
-    # Build the prompt
-    prompt = _build_system_prompt(instruction)
-    
-    # Convert image to base64
-    image_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-    
-    # Build the request payload (Gemini REST API format)
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "image/png",
-                            "data": image_b64
-                        }
-                    }
-                ]
-            }
+    client = _get_client()
+    model = model_name or _model
+    system_prompt = _build_system_prompt(instruction)
+
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            types.Part.from_text(text=f'Find the UI element: "{instruction}"'),
+            types.Part.from_bytes(data=screenshot_bytes, mime_type="image/png"),
         ],
-        "generationConfig": {
-            "temperature": 0.1,  # Low temperature for consistent outputs
-            "maxOutputTokens": 256
-        }
-    }
-    
-    # Make the API request
-    headers = {
-        "Content-Type": "application/json",
-        "X-goog-api-key": config.api_key
-    }
-    
-    response = requests.post(
-        endpoint,
-        json=payload,
-        headers=headers,
-        timeout=30
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=0.1,
+            max_output_tokens=256,
+            response_mime_type="application/json",
+        ),
     )
-    print(f"Gemini API response: {response.text}")
-    
-    # Handle errors
-    if response.status_code != 200:
-        raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
-    
-    # Parse response
-    result = response.json()
-    
-    # Extract text from response
-    try:
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError) as e:
-        raise Exception(f"Unexpected Gemini response format: {e}")
-    
+
+    text = response.text
+    print(f"Gemini API response: {text}")
+
+    if not text:
+        raise Exception("Gemini returned an empty response")
+
     return _parse_gemini_response(text)
 
 
@@ -208,7 +152,6 @@ def _parse_gemini_response(response_text: str) -> Optional[DetectionResult]:
     Returns:
         DetectionResult if valid, None otherwise.
     """
-    # Clean up the response (remove markdown code blocks if present)
     cleaned = response_text.strip()
     
     # Remove markdown code block wrapper if present
@@ -220,7 +163,6 @@ def _parse_gemini_response(response_text: str) -> Optional[DetectionResult]:
             lines = lines[:-1]
         cleaned = "\n".join(lines)
     
-    # Handle null response
     if cleaned.lower() == "null" or not cleaned:
         return None
     
@@ -228,7 +170,6 @@ def _parse_gemini_response(response_text: str) -> Optional[DetectionResult]:
         data = json.loads(cleaned)
         print(f"Parsed JSON: {data}")
     except json.JSONDecodeError:
-        # Try to extract JSON from the response
         json_match = re.search(r'\{[^{}]*\}', cleaned)
         if json_match:
             try:
@@ -241,14 +182,11 @@ def _parse_gemini_response(response_text: str) -> Optional[DetectionResult]:
     if data is None:
         return None
     
-    # Extract bounding box
     box = data.get("box_2d")
     if not box or len(box) != 4:
         return None
     
     ymin, xmin, ymax, xmax = box
-    
-    # Calculate center in normalized coordinates
     center_x = (xmin + xmax) / 2
     center_y = (ymin + ymax) / 2
     
@@ -271,10 +209,6 @@ def calculate_click_coordinates(
     """
     Convert Gemini's normalized coordinates to global screen coordinates.
     
-    Gemini returns coordinates in 0-1000 scale relative to the screenshot it saw.
-    The screenshot is in physical pixels (2x on Retina), but pyautogui and window
-    bounds work in logical pixels. We need to convert properly.
-    
     Args:
         detection: The DetectionResult from Gemini.
         window_left: Window's left position (logical pixels).
@@ -289,27 +223,21 @@ def calculate_click_coordinates(
     """
     center_x_norm, center_y_norm = detection.center_normalized
     
-    # Calculate scale factor (for Retina displays)
-    # scale_factor = physical pixels / logical pixels
     scale_factor_x = screenshot_width / window_width
     scale_factor_y = screenshot_height / window_height
     
     print(f"  Scale factors: x={scale_factor_x:.2f}, y={scale_factor_y:.2f}")
     
-    # Gemini's coordinates are relative to the screenshot (physical pixels)
-    # Convert normalized (0-1000) to screenshot pixels (physical)
     screenshot_x = (center_x_norm / 1000) * screenshot_width
     screenshot_y = (center_y_norm / 1000) * screenshot_height
     
     print(f"  Screenshot pixels (physical): x={screenshot_x:.2f}, y={screenshot_y:.2f}")
     
-    # Convert to logical pixels (offset from window origin)
     logical_offset_x = screenshot_x / scale_factor_x
     logical_offset_y = screenshot_y / scale_factor_y
     
     print(f"  Logical offset: x={logical_offset_x:.2f}, y={logical_offset_y:.2f}")
     
-    # Convert to global screen coordinates
     global_x = window_left + logical_offset_x
     global_y = window_top + logical_offset_y
     
@@ -338,7 +266,6 @@ def draw_debug_overlay(
     
     width, height = image.size
     
-    # Convert normalized coordinates to pixel coordinates
     ymin, xmin, ymax, xmax = detection.box_2d
     
     x1 = int((xmin / 1000) * width)
@@ -346,19 +273,15 @@ def draw_debug_overlay(
     x2 = int((xmax / 1000) * width)
     y2 = int((ymax / 1000) * height)
     
-    # Draw rectangle
     draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
     
-    # Draw center point
     cx = (x1 + x2) // 2
     cy = (y1 + y2) // 2
     r = 5
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill="red")
     
-    # Draw label
     draw.text((x1, y1 - 20), detection.label, fill="red")
     
-    # Convert back to bytes
     output = BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()

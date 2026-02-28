@@ -29,10 +29,13 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi import File, UploadFile, Form
 
-from actions import ActionType, execute_action
+import pyautogui
+from actions import ActionType, execute_action, human_click, human_scroll
 from context_builder import get_context_builder
 from models.context import ContextType
 from agents import VisionAgent, PlannerAgent, WindowResolverAgent, OrchestratorAgent
+from agents.computer_use_agent import ComputerUseAgent
+from agents.claude_computer_use_agent import ClaudeComputerUseAgent
 from agents.orchestrator_agent import ActionType as OrchestratorActionType
 from agents.vision_agent import calculate_screen_coordinates
 from agents.planner_agent import ActionType as PlanActionType
@@ -99,6 +102,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global store for guidance (context_id:test_id -> list of guidance strings)
+guidance_store: dict[str, list[str]] = {}
 
 
 # =============================================================================
@@ -170,6 +176,13 @@ class AutoRequest(BaseModel):
     instruction: str
     window_title: Optional[str] = None  # Auto-detected if not provided
     max_steps: int = 15  # Maximum steps before giving up
+
+
+class CURequest(BaseModel):
+    """Request body for the /cu/stream endpoint (Computer Use)."""
+    instruction: str
+    window_title: Optional[str] = None
+    max_steps: int = 25
 
 
 class AutoStepResult(BaseModel):
@@ -1393,6 +1406,550 @@ async def auto_execute_stream(request: AutoRequest):
 
 
 # =============================================================================
+# Computer Use Endpoint (Gemini Computer Use Tool)
+# =============================================================================
+
+def get_browser_url(app_name: str = "") -> str:
+    """Get the current URL from the frontmost browser tab via AppleScript."""
+    import subprocess
+    browsers = {
+        "Google Chrome": 'tell application "Google Chrome" to get URL of active tab of front window',
+        "Safari": 'tell application "Safari" to get URL of front document',
+        "Arc": 'tell application "Arc" to get URL of active tab of front window',
+        "Brave Browser": 'tell application "Brave Browser" to get URL of active tab of front window',
+        "Microsoft Edge": 'tell application "Microsoft Edge" to get URL of active tab of front window',
+    }
+    candidates = [app_name] if app_name in browsers else list(browsers.keys())
+    for name in candidates:
+        script = browsers.get(name)
+        if not script:
+            continue
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True, text=True, timeout=2,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except Exception:
+            continue
+    return ""
+
+
+def cu_to_global(x_norm: int, y_norm: int, window) -> tuple[int, int]:
+    """Convert Computer Use 0-999 normalized coords to global screen coords."""
+    global_x = int(window.bounds.left + (x_norm / 1000) * window.bounds.width)
+    global_y = int(window.bounds.top + (y_norm / 1000) * window.bounds.height)
+    return global_x, global_y
+
+
+def execute_cu_action(action_name: str, args: dict, window) -> dict:
+    """
+    Execute a single Computer Use action.
+
+    Returns a result dict to send back as FunctionResponse.
+    """
+    result = {}
+
+    if action_name == "open_web_browser":
+        activate_window(window)
+
+    elif action_name == "wait_5_seconds":
+        time.sleep(5)
+
+    elif action_name == "click_at":
+        gx, gy = cu_to_global(args["x"], args["y"], window)
+        human_click(gx, gy)
+        result["coordinates"] = [gx, gy]
+
+    elif action_name == "hover_at":
+        gx, gy = cu_to_global(args["x"], args["y"], window)
+        pyautogui.moveTo(gx, gy, duration=0.2)
+        result["coordinates"] = [gx, gy]
+
+    elif action_name == "type_text_at":
+        gx, gy = cu_to_global(args["x"], args["y"], window)
+        text = args.get("text", "")
+        press_enter = args.get("press_enter", True)
+        clear_first = args.get("clear_before_typing", True)
+
+        human_click(gx, gy)
+        time.sleep(0.3)
+
+        if clear_first:
+            pyautogui.hotkey("command", "a")
+            time.sleep(0.1)
+            pyautogui.press("backspace")
+            time.sleep(0.1)
+
+        pyautogui.write(text, interval=0.03)
+
+        if press_enter:
+            time.sleep(0.1)
+            pyautogui.press("enter")
+
+        result["coordinates"] = [gx, gy]
+        result["text"] = text
+
+    elif action_name == "scroll_document":
+        direction = args.get("direction", "down")
+        gx = window.bounds.left + window.bounds.width // 2
+        gy = window.bounds.top + window.bounds.height // 2
+        human_scroll(direction, gx, gy)
+        result["direction"] = direction
+
+    elif action_name == "scroll_at":
+        gx, gy = cu_to_global(args["x"], args["y"], window)
+        direction = args.get("direction", "down")
+        magnitude = args.get("magnitude", 800)
+        clicks = max(1, int(magnitude / 100))
+        human_scroll(direction, gx, gy, clicks=clicks)
+        result["coordinates"] = [gx, gy]
+        result["direction"] = direction
+
+    elif action_name == "key_combination":
+        keys_str = args.get("keys", "")
+        keys = [k.strip().lower() for k in keys_str.split("+")]
+        key_map = {"control": "ctrl", "meta": "command", "cmd": "command"}
+        keys = [key_map.get(k, k) for k in keys]
+        if len(keys) == 1:
+            pyautogui.press(keys[0])
+        else:
+            pyautogui.hotkey(*keys)
+        result["keys"] = keys_str
+
+    elif action_name == "navigate":
+        url = args.get("url", "")
+        pyautogui.hotkey("command", "l")
+        time.sleep(0.3)
+        pyautogui.hotkey("command", "a")
+        time.sleep(0.1)
+        pyautogui.write(url, interval=0.02)
+        time.sleep(0.1)
+        pyautogui.press("enter")
+        result["url"] = url
+
+    elif action_name == "search":
+        pyautogui.hotkey("command", "l")
+        time.sleep(0.3)
+
+    elif action_name == "go_back":
+        pyautogui.hotkey("command", "[")
+
+    elif action_name == "go_forward":
+        pyautogui.hotkey("command", "]")
+
+    elif action_name == "drag_and_drop":
+        sx, sy = cu_to_global(args["x"], args["y"], window)
+        dx, dy = cu_to_global(args["destination_x"], args["destination_y"], window)
+        pyautogui.moveTo(sx, sy, duration=0.2)
+        pyautogui.mouseDown()
+        time.sleep(0.1)
+        pyautogui.moveTo(dx, dy, duration=0.4)
+        time.sleep(0.1)
+        pyautogui.mouseUp()
+        result["from"] = [sx, sy]
+        result["to"] = [dx, dy]
+
+    else:
+        result["warning"] = f"Unrecognised action: {action_name}"
+
+    return result
+
+
+@app.post("/cu/stream")
+async def computer_use_stream(request: CURequest):
+    """
+    SSE streaming endpoint using Gemini Computer Use.
+
+    The Computer Use model sees the screenshot and directly outputs actions
+    (click_at, type_text_at, scroll, etc.) with exact coordinates — replacing
+    the OrchestratorAgent + VisionAgent two-call pattern.
+
+    Event types:
+    - "start": Execution started
+    - "thinking": Model's reasoning (when available)
+    - "action": An action was executed
+    - "complete": Execution finished
+    - "error": An error occurred
+    """
+
+    async def event_generator():
+        # 1. Resolve window
+        window_title = request.window_title
+
+        if not window_title:
+            yield f"data: {json.dumps({'event': 'status', 'message': 'Resolving target window...'})}\n\n"
+            await asyncio.sleep(0)
+
+            try:
+                resolver = WindowResolverAgent()
+                all_windows = list_windows()
+                windows_for_resolver = [
+                    {"title": w.title, "app_name": w.app_name}
+                    for w in all_windows
+                ]
+                match = resolver.resolve(request.instruction, windows_for_resolver)
+                if match:
+                    window_title = match.window_title
+                    yield f"data: {json.dumps({'event': 'status', 'message': f'Target window: {window_title}'})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'event': 'error', 'message': 'Could not determine target window'})}\n\n"
+                    return
+            except Exception as e:
+                yield f"data: {json.dumps({'event': 'error', 'message': f'Window resolution failed: {str(e)}'})}\n\n"
+                return
+
+        # 2. Find and activate window
+        window = get_window_by_title(window_title)
+        if not window:
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Window not found: {window_title}'})}\n\n"
+            return
+
+        # 3. Initialise Computer Use agent
+        try:
+            agent = ComputerUseAgent()
+        except ValueError as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+            return
+
+        activate_window(window)
+        time.sleep(0.5)
+
+        yield f"data: {json.dumps({'event': 'start', 'goal': request.instruction, 'window': window_title, 'max_steps': request.max_steps, 'model': agent.model})}\n\n"
+        await asyncio.sleep(0)
+
+        # 4. Capture initial screenshot and start
+        try:
+            screenshot_bytes = capture_window(window)
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Screenshot failed: {str(e)}'})}\n\n"
+            return
+
+        print(f"[CU] Starting — goal: {request.instruction}")
+        cu_response = agent.start(request.instruction, screenshot_bytes)
+
+        step_num = 0
+
+        # 5. Agent loop
+        for turn in range(request.max_steps):
+            if cu_response.thinking:
+                yield f"data: {json.dumps({'event': 'thinking', 'text': cu_response.thinking})}\n\n"
+                await asyncio.sleep(0)
+
+            if cu_response.text:
+                yield f"data: {json.dumps({'event': 'status', 'message': cu_response.text})}\n\n"
+                await asyncio.sleep(0)
+
+            if cu_response.is_done:
+                print(f"[CU] Done — {cu_response.text}")
+                break
+
+            # Execute all actions from this turn
+            action_results: list[tuple[str, dict]] = []
+
+            for action in cu_response.actions:
+                step_num += 1
+                step_data = {
+                    "step_number": step_num,
+                    "action": action.name,
+                    "args": action.args,
+                    "success": False,
+                }
+
+                if action.safety_decision:
+                    decision_type = action.safety_decision.get("decision", "")
+                    explanation = action.safety_decision.get("explanation", "")
+                    if decision_type == "require_confirmation":
+                        step_data["safety_warning"] = explanation
+                        yield f"data: {json.dumps({'event': 'safety', 'explanation': explanation, 'action': action.name})}\n\n"
+
+                try:
+                    print(f"[CU] Step {step_num}: {action.name}({action.args})")
+                    result = execute_cu_action(action.name, action.args, window)
+                    step_data["success"] = True
+                    step_data["result"] = result
+                    action_results.append((action.name, result))
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"[CU] Error on {action.name}: {error_msg}")
+                    step_data["error"] = error_msg
+                    action_results.append((action.name, {"error": error_msg}))
+
+                yield f"data: {json.dumps({'event': 'action', 'step': step_data})}\n\n"
+                await asyncio.sleep(0)
+
+            # Wait for any UI updates to settle
+            time.sleep(1.0)
+
+            # Capture new screenshot and get browser URL
+            try:
+                screenshot_bytes = capture_window(window)
+            except Exception as e:
+                yield f"data: {json.dumps({'event': 'error', 'message': f'Screenshot failed: {str(e)}'})}\n\n"
+                break
+
+            current_url = get_browser_url(window.app_name or "")
+            cu_response = agent.step(action_results, screenshot_bytes, current_url=current_url)
+
+        # 6. Complete
+        success = cu_response.is_done
+        status = "success" if success else ("max_steps_reached" if step_num >= request.max_steps else "failed")
+
+        yield f"data: {json.dumps({'event': 'complete', 'status': status, 'success': success, 'steps_taken': step_num, 'final_message': cu_response.text or ''})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+# =============================================================================
+# Claude Computer Use Endpoint
+# =============================================================================
+
+def execute_claude_action(action, window) -> dict:
+    """Execute a single Claude Computer Use action. Coords are in window-local pixels."""
+    result = {}
+    atype = action.action
+
+    if atype == "screenshot":
+        pass
+
+    elif atype in ("left_click", "right_click", "middle_click", "double_click", "triple_click"):
+        if action.coordinate:
+            gx = window.bounds.left + action.coordinate[0]
+            gy = window.bounds.top + action.coordinate[1]
+            btn = action.button or "left"
+            if atype == "left_click":
+                human_click(gx, gy)
+            elif atype == "right_click":
+                pyautogui.rightClick(gx, gy)
+            elif atype == "middle_click":
+                pyautogui.middleClick(gx, gy)
+            elif atype == "double_click":
+                pyautogui.doubleClick(gx, gy)
+            elif atype == "triple_click":
+                pyautogui.tripleClick(gx, gy)
+            result["coordinates"] = [gx, gy]
+
+    elif atype == "type":
+        if action.text:
+            pyautogui.write(action.text, interval=0.03)
+        result["text"] = action.text
+
+    elif atype == "key":
+        if action.text:
+            keys = action.text.split("+")
+            key_map = {"ctrl": "ctrl", "cmd": "command", "super": "command",
+                       "alt": "alt", "option": "alt", "shift": "shift",
+                       "return": "enter", "space": "space"}
+            mapped = [key_map.get(k.strip().lower(), k.strip().lower()) for k in keys]
+            if len(mapped) == 1:
+                pyautogui.press(mapped[0])
+            else:
+                pyautogui.hotkey(*mapped)
+        result["keys"] = action.text
+
+    elif atype == "mouse_move":
+        if action.coordinate:
+            gx = window.bounds.left + action.coordinate[0]
+            gy = window.bounds.top + action.coordinate[1]
+            pyautogui.moveTo(gx, gy, duration=0.2)
+            result["coordinates"] = [gx, gy]
+
+    elif atype == "scroll":
+        if action.coordinate:
+            gx = window.bounds.left + action.coordinate[0]
+            gy = window.bounds.top + action.coordinate[1]
+        else:
+            gx = window.bounds.left + window.bounds.width // 2
+            gy = window.bounds.top + window.bounds.height // 2
+        direction = action.scroll_direction or "down"
+        amount = action.scroll_amount or 3
+        clicks = amount * 3
+        human_scroll(direction, gx, gy, clicks=clicks)
+        result["direction"] = direction
+
+    elif atype == "left_click_drag":
+        if action.start_coordinate and action.end_coordinate:
+            sx = window.bounds.left + action.start_coordinate[0]
+            sy = window.bounds.top + action.start_coordinate[1]
+            dx = window.bounds.left + action.end_coordinate[0]
+            dy = window.bounds.top + action.end_coordinate[1]
+            pyautogui.moveTo(sx, sy, duration=0.2)
+            pyautogui.mouseDown()
+            time.sleep(0.1)
+            pyautogui.moveTo(dx, dy, duration=0.4)
+            time.sleep(0.1)
+            pyautogui.mouseUp()
+            result["from"] = [sx, sy]
+            result["to"] = [dx, dy]
+
+    elif atype == "hold_key":
+        if action.text and action.duration:
+            pyautogui.keyDown(action.text)
+            time.sleep(action.duration)
+            pyautogui.keyUp(action.text)
+
+    elif atype == "wait":
+        time.sleep(2)
+
+    else:
+        result["warning"] = f"Unrecognised action: {atype}"
+
+    return result
+
+
+@app.post("/claude-cu/stream")
+async def claude_computer_use_stream(request: CURequest):
+    """
+    SSE streaming endpoint using Claude Computer Use.
+
+    Works on any application (browser, desktop, terminal).
+    Coordinates are in actual pixels — no normalization.
+
+    Event types: start, thinking, action, complete, error
+    """
+
+    async def event_generator():
+        window_title = request.window_title
+
+        if not window_title:
+            yield f"data: {json.dumps({'event': 'status', 'message': 'Resolving target window...'})}\n\n"
+            await asyncio.sleep(0)
+            try:
+                resolver = WindowResolverAgent()
+                all_windows = list_windows()
+                windows_for_resolver = [
+                    {"title": w.title, "app_name": w.app_name}
+                    for w in all_windows
+                ]
+                match = resolver.resolve(request.instruction, windows_for_resolver)
+                if match:
+                    window_title = match.window_title
+                    yield f"data: {json.dumps({'event': 'status', 'message': f'Target window: {window_title}'})}\n\n"
+                else:
+                    yield f"data: {json.dumps({'event': 'error', 'message': 'Could not determine target window'})}\n\n"
+                    return
+            except Exception as e:
+                yield f"data: {json.dumps({'event': 'error', 'message': f'Window resolution failed: {str(e)}'})}\n\n"
+                return
+
+        window = get_window_by_title(window_title)
+        if not window:
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Window not found: {window_title}'})}\n\n"
+            return
+
+        try:
+            agent = ClaudeComputerUseAgent(
+                display_width=window.bounds.width,
+                display_height=window.bounds.height,
+            )
+        except ValueError as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+            return
+
+        activate_window(window)
+        time.sleep(0.5)
+
+        yield f"data: {json.dumps({'event': 'start', 'goal': request.instruction, 'window': window_title, 'max_steps': request.max_steps, 'model': agent.model})}\n\n"
+        await asyncio.sleep(0)
+
+        try:
+            screenshot_bytes = capture_window(window)
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Screenshot failed: {str(e)}'})}\n\n"
+            return
+
+        print(f"[Claude-CU] Starting — goal: {request.instruction}")
+        cu_response = agent.start(request.instruction, screenshot_bytes)
+
+        step_num = 0
+
+        for turn in range(request.max_steps):
+            if cu_response.thinking:
+                yield f"data: {json.dumps({'event': 'thinking', 'text': cu_response.thinking})}\n\n"
+                await asyncio.sleep(0)
+
+            if cu_response.text:
+                yield f"data: {json.dumps({'event': 'status', 'message': cu_response.text})}\n\n"
+                await asyncio.sleep(0)
+
+            if cu_response.is_done:
+                print(f"[Claude-CU] Done — {cu_response.text}")
+                break
+
+            tool_use_ids: list[str] = []
+
+            for action in cu_response.actions:
+                step_num += 1
+
+                if action.action == "screenshot":
+                    tool_use_ids.append(action.tool_use_id)
+                    continue
+
+                step_data = {
+                    "step_number": step_num,
+                    "action": action.action,
+                    "args": {},
+                    "success": False,
+                    "reasoning": cu_response.thinking or cu_response.text or "",
+                }
+                if action.coordinate:
+                    step_data["args"]["coordinate"] = action.coordinate
+                if action.text:
+                    step_data["args"]["text"] = action.text
+                if action.scroll_direction:
+                    step_data["args"]["direction"] = action.scroll_direction
+
+                try:
+                    print(f"[Claude-CU] Step {step_num}: {action.action}({step_data['args']})")
+                    result = execute_claude_action(action, window)
+                    step_data["success"] = True
+                    step_data["result"] = result
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"[Claude-CU] Error on {action.action}: {error_msg}")
+                    step_data["error"] = error_msg
+
+                tool_use_ids.append(action.tool_use_id)
+
+                yield f"data: {json.dumps({'event': 'action', 'step': step_data})}\n\n"
+                await asyncio.sleep(0)
+
+            time.sleep(1.0)
+
+            try:
+                screenshot_bytes = capture_window(window)
+            except Exception as e:
+                yield f"data: {json.dumps({'event': 'error', 'message': f'Screenshot failed: {str(e)}'})}\n\n"
+                break
+
+            cu_response = agent.step(tool_use_ids, screenshot_bytes)
+
+        success = cu_response.is_done
+        status = "success" if success else ("max_steps_reached" if step_num >= request.max_steps else "failed")
+
+        yield f"data: {json.dumps({'event': 'complete', 'status': status, 'success': success, 'steps_taken': step_num, 'final_message': cu_response.text or ''})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+# =============================================================================
 # Feature Context API (for Test Generation)
 # =============================================================================
 
@@ -1632,6 +2189,7 @@ async def update_context_status(context_id: str, status: str):
 class BuildContextRequest(BaseModel):
     """Request to build context with optional feedback."""
     user_feedback: str = ""
+    provider: str = "claude"
 
 
 @app.post("/feature/{context_id}/build-context")
@@ -1646,7 +2204,8 @@ async def build_context(context_id: str, request: BuildContextRequest = None):
     """
     try:
         feedback = request.user_feedback if request else ""
-        result = get_context_builder().build_context(context_id, feedback)
+        provider = request.provider if request else "claude"
+        result = get_context_builder().build_context(context_id, feedback, provider=provider)
         
         message = "Context built successfully. Review the summary and generate test cases."
         if feedback:
@@ -1668,8 +2227,13 @@ async def build_context(context_id: str, request: BuildContextRequest = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class GeneratePlanRequest(BaseModel):
+    """Request to generate a test plan."""
+    provider: str = "claude"
+
+
 @app.post("/feature/{context_id}/generate-plan")
-async def generate_test_plan(context_id: str):
+async def generate_test_plan(context_id: str, request: GeneratePlanRequest = None):
     """
     Generate text-based test cases for user review.
     
@@ -1677,7 +2241,8 @@ async def generate_test_plan(context_id: str):
     User should review these before approving for executable generation.
     """
     try:
-        result = get_context_builder().generate_test_plan(context_id)
+        provider = request.provider if request else "claude"
+        result = get_context_builder().generate_test_plan(context_id, provider=provider)
         
         return {
             "success": True,
@@ -1702,16 +2267,16 @@ class ApproveTestsRequest(BaseModel):
 
 
 @app.post("/feature/{context_id}/approve-tests")
-async def approve_and_generate(context_id: str, request: ApproveTestsRequest = None):
+async def approve_tests(context_id: str, request: ApproveTestsRequest = None):
     """
-    Step 2: Approve test cases and generate executable JSON.
+    Step 2: Approve test cases (mark as ready for execution).
     
-    After user reviews the test plan, call this to generate the executable steps.
-    Optionally pass specific test IDs to include only those.
+    After user reviews the test plan, call this to approve tests.
+    Optionally pass specific test IDs to approve only those.
     """
     try:
         approved_ids = request.approved_test_ids if request else None
-        result = get_context_builder().approve_and_generate_executable(context_id, approved_ids)
+        result = get_context_builder().approve_tests(context_id, approved_ids)
         
         return {
             "success": True,
@@ -1719,9 +2284,8 @@ async def approve_and_generate(context_id: str, request: ApproveTestsRequest = N
             "feature_name": result.get("feature_name"),
             "test_count": len(result.get("test_cases", [])),
             "test_cases": result.get("test_cases", []),
-            "executable_tests": result.get("executable_tests", []),
             "status": result.get("status"),
-            "message": "Executable tests generated. Ready for execution."
+            "message": "Tests approved. Ready for execution."
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1789,6 +2353,7 @@ class ExecuteTestsRequest(BaseModel):
     """Request to execute generated tests."""
     window_title: str
     test_ids: list = None  # If None, execute all tests
+    provider: str = "claude"
 
 
 @app.post("/feature/{context_id}/execute")
@@ -1804,234 +2369,362 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
     - suite_complete: All tests finished
     - error: Error occurred
     """
+    print(f"\n{'='*80}")
+    print(f"[EXECUTE] ===== /feature/{context_id}/execute ENDPOINT CALLED =====")
+    print(f"[EXECUTE] Request received: context_id={context_id}, window_title={request.window_title}, provider={request.provider}")
+    print(f"[EXECUTE] Request test_ids: {request.test_ids}")
+    
     # Load test plan
-    tests_data = get_context_builder().get_test_plan(context_id)
-    if not tests_data:
-        raise HTTPException(status_code=404, detail="No test plan found")
+    print(f"[EXECUTE] Loading test plan for context {context_id}...")
+    try:
+        tests_data = get_context_builder().get_test_plan(context_id)
+        if not tests_data:
+            print(f"[EXECUTE] ✗ No test plan found")
+            raise HTTPException(status_code=404, detail="No test plan found")
+        print(f"[EXECUTE] ✓ Test plan loaded")
+    except Exception as e:
+        print(f"[EXECUTE] ✗ Error loading test plan: {e}")
+        raise
     
     if tests_data.get("status") != "approved":
+        print(f"[EXECUTE] ✗ Tests not approved. Status: {tests_data.get('status')}")
         raise HTTPException(status_code=400, detail="Tests not approved yet. Approve tests first.")
     
-    executable_tests = tests_data.get("executable_tests", [])
-    if not executable_tests:
-        raise HTTPException(status_code=400, detail="No executable tests found")
+    test_cases = tests_data.get("test_cases", [])
+    print(f"[EXECUTE] Found {len(test_cases)} test cases")
+    if not test_cases:
+        print(f"[EXECUTE] ✗ No test cases found")
+        raise HTTPException(status_code=400, detail="No test cases found")
     
     # Filter to requested tests if specified
     if request.test_ids:
-        executable_tests = [t for t in executable_tests if t.get("test_id") in request.test_ids]
+        print(f"[EXECUTE] Filtering to requested test IDs: {request.test_ids}")
+        test_cases = [tc for tc in test_cases if tc.get("id") in request.test_ids]
+        print(f"[EXECUTE] After filtering: {len(test_cases)} tests")
     
     # Validate window
-    window = get_window_by_title(request.window_title)
-    if not window:
-        raise HTTPException(status_code=404, detail=f"Window not found: {request.window_title}")
+    print(f"[EXECUTE] Looking for window: {request.window_title}")
+    try:
+        window = get_window_by_title(request.window_title)
+        if not window:
+            print(f"[EXECUTE] ✗ Window not found: {request.window_title}")
+            raise HTTPException(status_code=404, detail=f"Window not found: {request.window_title}")
+        print(f"[EXECUTE] ✓ Window found: {window.title} (app: {window.app_name})")
+        print(f"[EXECUTE] Window bounds: left={window.bounds.left}, top={window.bounds.top}, width={window.bounds.width}, height={window.bounds.height}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[EXECUTE] ✗ Error finding window: {e}")
+        raise HTTPException(status_code=500, detail=f"Error finding window: {str(e)}")
+    
+    print(f"[EXECUTE] Starting async test suite execution...")
+    print(f"{'='*80}\n")
     
     async def execute_test_suite():
         """Generator that executes tests and yields SSE events."""
-        # Initialize agents
-        vision_agent = VisionAgent()
-        orchestrator = OrchestratorAgent()
+        provider = request.provider
+        print(f"[EXECUTE] ===== Test Suite Execution Started (provider={provider}) =====")
+        print(f"[EXECUTE] Context ID: {context_id}")
+        print(f"[EXECUTE] Window: {request.window_title}")
+        print(f"[EXECUTE] Total tests: {len(test_cases)}")
         
-        # Suite start event
-        yield f"data: {json.dumps({'event': 'suite_start', 'context_id': context_id, 'window': request.window_title, 'total_tests': len(executable_tests)})}\n\n"
+        suite_start_event = {'event': 'suite_start', 'context_id': context_id, 'window': request.window_title, 'total_tests': len(test_cases)}
+        yield f"data: {json.dumps(suite_start_event)}\n\n"
         
-        suite_results = {
-            "passed": 0,
-            "failed": 0,
-            "skipped": 0,
-            "test_results": []
-        }
+        suite_results = {"passed": 0, "failed": 0, "skipped": 0, "test_results": []}
         
-        for test_idx, test in enumerate(executable_tests):
-            test_id = test.get("test_id", f"TC-{test_idx+1}")
-            test_title = test.get("title", "Unknown Test")
+        for test_idx, test_case in enumerate(test_cases):
+            test_id = test_case.get("id", f"TC-{test_idx+1}")
+            test_title = test_case.get("title", "Unknown Test")
+            print(f"[EXECUTE] ===== Test [{test_idx + 1}/{len(test_cases)}]: {test_id} - {test_title} =====")
             
-            # Skip tests with conversion errors
-            if "error" in test:
-                yield f"data: {json.dumps({'event': 'test_skip', 'test_id': test_id, 'reason': test.get('error')})}\n\n"
-                suite_results["skipped"] += 1
-                suite_results["test_results"].append({
-                    "test_id": test_id,
-                    "status": "skipped",
-                    "reason": test.get("error")
-                })
-                continue
+            steps_text = "\n".join([f"{i+1}. {step}" for i, step in enumerate(test_case.get("steps", []))])
+            goal = f"""{test_title}
+
+Steps to execute:
+{steps_text}
+
+Expected result: {test_case.get("expected_result", "N/A")}"""
             
-            # Test start
-            yield f"data: {json.dumps({'event': 'test_start', 'test_id': test_id, 'title': test_title, 'test_number': test_idx + 1, 'total_tests': len(executable_tests), 'starting_state': test.get('starting_state', ''), 'ending_state': test.get('ending_state', '')})}\n\n"
+            guidance_key = f"{context_id}:{test_id}"
+            if guidance_key in guidance_store:
+                goal += "\n\nUser Guidance:\n" + "\n".join([f"- {g}" for g in guidance_store[guidance_key]])
             
-            test_passed = True
-            test_steps_results = []
+            test_start_event = {
+                'event': 'test_start',
+                'test_id': test_id,
+                'title': test_title,
+                'test_number': test_idx + 1,
+                'total_tests': len(test_cases),
+                'goal': goal
+            }
+            yield f"data: {json.dumps(test_start_event)}\n\n"
             
-            # Execute all steps (setup + test + cleanup)
-            all_steps = []
-            for step in test.get("setup_steps", []):
-                step["phase"] = "setup"
-                all_steps.append(step)
-            for step in test.get("test_steps", []):
-                step["phase"] = "test"
-                all_steps.append(step)
-            for step in test.get("cleanup_steps", []):
-                step["phase"] = "cleanup"
-                all_steps.append(step)
+            test_passed = False
+            test_steps = []
             
-            for step_idx, step in enumerate(all_steps):
-                step_number = step.get("step_number", step_idx + 1)
-                action = step.get("action", "unknown")
-                target = step.get("target", "")
-                value = step.get("value", "")
-                verification = step.get("verification", "")
-                phase = step.get("phase", "test")
-                
-                # Step start event
-                yield f"data: {json.dumps({'event': 'step_start', 'test_id': test_id, 'step_number': step_number, 'phase': phase, 'action': action, 'target': target})}\n\n"
-                
+            if provider == "claude":
+                # ── Claude Computer Use path ──
                 try:
-                    # Activate window
-                    activate_window(request.window_title)
-                    await asyncio.sleep(0.3)
-                    
-                    # Capture screenshot
-                    screenshot = capture_window(request.window_title)
-                    if not screenshot:
-                        raise Exception("Failed to capture window")
-                    
-                    screenshot_b64 = image_to_base64(screenshot)
-                    
-                    # Execute based on action type
-                    step_success = True
-                    step_error = None
-                    coordinates = None
-                    
-                    if action in ["click", "tap"]:
-                        # Find element and click
-                        detection = vision_agent.detect(screenshot_b64, target)
-                        if detection and detection.get("found"):
-                            bounds = window["bounds"]
-                            scale = get_screenshot_dimensions(screenshot, bounds)
-                            coords = calculate_screen_coordinates(
-                                detection.get("bounding_box", [0, 0, 0, 0]),
-                                bounds,
-                                scale,
-                                y_offset_ratio=-0.2
-                            )
-                            coordinates = [coords["global_x"], coords["global_y"]]
-                            
-                            execute_action(ActionType.CLICK, x=coords["global_x"], y=coords["global_y"])
-                            await asyncio.sleep(0.5)
-                        else:
-                            step_success = False
-                            step_error = f"Element not found: {target}"
-                    
-                    elif action == "type":
-                        # Find input and type
-                        detection = vision_agent.detect(screenshot_b64, target)
-                        if detection and detection.get("found"):
-                            bounds = window["bounds"]
-                            scale = get_screenshot_dimensions(screenshot, bounds)
-                            coords = calculate_screen_coordinates(
-                                detection.get("bounding_box", [0, 0, 0, 0]),
-                                bounds,
-                                scale,
-                                y_offset_ratio=-0.2
-                            )
-                            coordinates = [coords["global_x"], coords["global_y"]]
-                            
-                            execute_action(ActionType.CLICK, x=coords["global_x"], y=coords["global_y"])
-                            await asyncio.sleep(0.3)
-                            execute_action(ActionType.TYPE, text=value)
-                            await asyncio.sleep(0.3)
-                        else:
-                            step_success = False
-                            step_error = f"Input not found: {target}"
-                    
-                    elif action == "scroll":
-                        bounds = window["bounds"]
-                        center_x = bounds["left"] + bounds["width"] // 2
-                        center_y = bounds["top"] + bounds["height"] // 2
-                        coordinates = [center_x, center_y]
-                        
-                        direction = value.lower() if value else "down"
-                        clicks = 10 if direction in ["down", "right"] else -10
-                        execute_action(ActionType.SCROLL, x=center_x, y=center_y, clicks=clicks)
-                        await asyncio.sleep(0.5)
-                    
-                    elif action == "back":
-                        # Use keyboard shortcut or find back button
-                        import pyautogui
-                        pyautogui.press("escape")
-                        await asyncio.sleep(0.5)
-                    
-                    elif action == "wait":
-                        await asyncio.sleep(2)
-                    
-                    elif action == "verify":
-                        # Capture new screenshot and verify element exists
-                        new_screenshot = capture_window(request.window_title)
-                        if new_screenshot:
-                            new_b64 = image_to_base64(new_screenshot)
-                            detection = vision_agent.detect(new_b64, target)
-                            if not (detection and detection.get("found")):
-                                step_success = False
-                                step_error = f"Verification failed: {target} not found"
-                    
-                    # Step complete event
-                    step_result = {
-                        "step_number": step_number,
-                        "phase": phase,
-                        "action": action,
-                        "target": target,
-                        "success": step_success,
-                        "coordinates": coordinates,
-                        "error": step_error
-                    }
-                    test_steps_results.append(step_result)
-                    
-                    yield f"data: {json.dumps({'event': 'step_complete', 'test_id': test_id, **step_result})}\n\n"
-                    
-                    if not step_success:
-                        test_passed = False
-                        # Continue with cleanup steps even if test fails
-                        if phase != "cleanup":
-                            # Skip remaining test steps, jump to cleanup
-                            break
-                    
+                    agent = ClaudeComputerUseAgent(
+                        display_width=window.bounds.width,
+                        display_height=window.bounds.height,
+                    )
+                except ValueError as e:
+                    yield f"data: {json.dumps({'event': 'step_error', 'test_id': test_id, 'step_number': 0, 'error': str(e)})}\n\n"
+                    suite_results["failed"] += 1
+                    suite_results["test_results"].append({"test_id": test_id, "title": test_title, "status": "failed", "steps": []})
+                    yield f"data: {json.dumps({'event': 'test_complete', 'test_id': test_id, 'status': 'failed', 'steps_executed': 0})}\n\n"
+                    continue
+
+                activate_window(window)
+                time.sleep(0.5)
+
+                try:
+                    screenshot_bytes = capture_window(window)
                 except Exception as e:
-                    step_result = {
-                        "step_number": step_number,
-                        "phase": phase,
-                        "action": action,
-                        "target": target,
-                        "success": False,
-                        "error": str(e)
-                    }
-                    test_steps_results.append(step_result)
-                    
-                    yield f"data: {json.dumps({'event': 'step_error', 'test_id': test_id, **step_result})}\n\n"
-                    test_passed = False
-                    break
-            
-            # Test complete event
+                    yield f"data: {json.dumps({'event': 'step_error', 'test_id': test_id, 'step_number': 0, 'error': f'Screenshot failed: {str(e)}'})}\n\n"
+                    suite_results["failed"] += 1
+                    suite_results["test_results"].append({"test_id": test_id, "title": test_title, "status": "failed", "steps": []})
+                    yield f"data: {json.dumps({'event': 'test_complete', 'test_id': test_id, 'status': 'failed', 'steps_executed': 0})}\n\n"
+                    continue
+
+                cu_response = agent.start(goal, screenshot_bytes)
+                step_num = 0
+                max_steps = 30
+
+                for turn in range(max_steps):
+                    if cu_response.thinking:
+                        latest_thinking = cu_response.thinking
+
+                    if cu_response.is_done:
+                        print(f"[EXECUTE-CU] ✓ Claude says done: {cu_response.text}")
+                        test_passed = True
+                        break
+
+                    tool_use_ids: list[str] = []
+
+                    for action in cu_response.actions:
+                        step_num += 1
+
+                        if action.action == "screenshot":
+                            tool_use_ids.append(action.tool_use_id)
+                            continue
+
+                        step_data = {
+                            'step_number': step_num,
+                            'action': action.action,
+                            'target': action.text or None,
+                            'value': f"({action.coordinate[0]}, {action.coordinate[1]})" if action.coordinate else None,
+                            'reasoning': cu_response.thinking or cu_response.text or '',
+                            'current_state': '',
+                            'success': False,
+                            'coordinates': None,
+                            'error': None
+                        }
+
+                        try:
+                            print(f"[EXECUTE-CU] Step {step_num}: {action.action}")
+                            result = execute_claude_action(action, window)
+                            step_data['success'] = True
+                            step_data['coordinates'] = result.get("coordinates")
+                        except Exception as e:
+                            print(f"[EXECUTE-CU] Error: {e}")
+                            step_data['error'] = str(e)
+
+                        tool_use_ids.append(action.tool_use_id)
+                        test_steps.append(step_data)
+
+                        step_event = {
+                            'event': 'step',
+                            'test_id': test_id,
+                            **step_data
+                        }
+                        yield f"data: {json.dumps(step_event)}\n\n"
+                        await asyncio.sleep(0)
+
+                    time.sleep(1.0)
+
+                    try:
+                        screenshot_bytes = capture_window(window)
+                    except Exception as e:
+                        print(f"[EXECUTE-CU] Screenshot failed: {e}")
+                        break
+
+                    if tool_use_ids:
+                        cu_response = agent.step(tool_use_ids, screenshot_bytes)
+                    else:
+                        cu_response = agent.step(
+                            [action.tool_use_id for action in cu_response.actions] if cu_response.actions else [],
+                            screenshot_bytes,
+                        )
+
+            else:
+                # ── Gemini legacy path (OrchestratorAgent + VisionAgent) ──
+                vision_agent = VisionAgent(provider="gemini")
+                orchestrator = OrchestratorAgent(provider="gemini")
+                max_steps = 30
+                action_history = []
+
+                for step_num in range(1, max_steps + 1):
+                    try:
+                        activate_window(window)
+                        await asyncio.sleep(0.3)
+
+                        screenshot = capture_window(window)
+                        if not screenshot:
+                            raise Exception("Failed to capture window")
+
+                        decision = orchestrator.analyze_and_decide(
+                            screenshot_bytes=screenshot,
+                            goal=goal,
+                            previous_actions=action_history
+                        )
+
+                        if decision.action == OrchestratorActionType.STUCK:
+                            need_help_event = {
+                                'event': 'need_help',
+                                'test_id': test_id,
+                                'step_number': step_num,
+                                'current_state': decision.current_state,
+                                'reasoning': decision.reasoning,
+                                'question': decision.reasoning
+                            }
+                            yield f"data: {json.dumps(need_help_event)}\n\n"
+
+                            g_key = f"{context_id}:{test_id}"
+                            if g_key in guidance_store and guidance_store[g_key]:
+                                goal += f"\n\nUser Guidance: {guidance_store[g_key][-1]}"
+                                guidance_store[g_key] = []
+                            else:
+                                test_steps.append({'step_number': step_num, 'action': 'stuck', 'reasoning': decision.reasoning, 'success': False, 'error': 'Waiting for human guidance'})
+                                break
+
+                        if decision.goal_complete or decision.action == OrchestratorActionType.DONE:
+                            test_passed = True
+                            test_steps.append({'step_number': step_num, 'action': 'done', 'reasoning': decision.reasoning, 'success': True})
+                            break
+
+                        step_success = True
+                        step_error = None
+                        coordinates = None
+
+                        if decision.action == OrchestratorActionType.CLICK:
+                            detection = vision_agent.detect(screenshot, decision.target)
+                            if detection and detection.get("found"):
+                                screenshot_width, screenshot_height = get_screenshot_dimensions(screenshot, window)
+                                global_x, global_y = calculate_screen_coordinates(
+                                    detection=detection,
+                                    window_left=window.bounds.left, window_top=window.bounds.top,
+                                    window_width=window.bounds.width, window_height=window.bounds.height,
+                                    screenshot_width=screenshot_width, screenshot_height=screenshot_height,
+                                    y_offset_ratio=-0.2
+                                )
+                                coordinates = [global_x, global_y]
+                                execute_action(ActionType.CLICK, x=global_x, y=global_y)
+                                await asyncio.sleep(0.5)
+                            else:
+                                step_success = False
+                                step_error = f"Element not found: {decision.target}"
+
+                        elif decision.action == OrchestratorActionType.TYPE:
+                            detection = vision_agent.detect(screenshot, decision.target)
+                            if detection and detection.get("found"):
+                                screenshot_width, screenshot_height = get_screenshot_dimensions(screenshot, window)
+                                global_x, global_y = calculate_screen_coordinates(
+                                    detection=detection,
+                                    window_left=window.bounds.left, window_top=window.bounds.top,
+                                    window_width=window.bounds.width, window_height=window.bounds.height,
+                                    screenshot_width=screenshot_width, screenshot_height=screenshot_height,
+                                    y_offset_ratio=-0.2
+                                )
+                                coordinates = [global_x, global_y]
+                                execute_action(ActionType.CLICK, x=global_x, y=global_y)
+                                await asyncio.sleep(0.3)
+                                execute_action(ActionType.TYPE, text=decision.value or "")
+                                await asyncio.sleep(0.3)
+                            else:
+                                step_success = False
+                                step_error = f"Input not found: {decision.target}"
+
+                        elif decision.action == OrchestratorActionType.SCROLL:
+                            center_x = window.bounds.left + window.bounds.width // 2
+                            center_y = window.bounds.top + window.bounds.height // 2
+                            coordinates = [center_x, center_y]
+                            direction = decision.value.lower() if decision.value else "down"
+                            execute_action(ActionType.SCROLL, x=center_x, y=center_y, scroll_direction=direction)
+                            await asyncio.sleep(0.5)
+
+                        elif decision.action == OrchestratorActionType.WAIT:
+                            wait_seconds = int(decision.value) if decision.value and decision.value.isdigit() else 1
+                            await asyncio.sleep(wait_seconds)
+
+                        action_desc = f"{decision.action.value}"
+                        if decision.target:
+                            action_desc += f" on '{decision.target}'"
+                        action_history.append(action_desc)
+
+                        test_steps.append({
+                            'step_number': step_num,
+                            'action': decision.action.value,
+                            'target': decision.target,
+                            'value': decision.value,
+                            'reasoning': decision.reasoning,
+                            'current_state': decision.current_state,
+                            'success': step_success,
+                            'coordinates': coordinates,
+                            'error': step_error
+                        })
+
+                        step_event = {
+                            'event': 'step',
+                            'test_id': test_id,
+                            'step_number': step_num,
+                            'action': decision.action.value,
+                            'target': decision.target,
+                            'value': decision.value,
+                            'reasoning': decision.reasoning,
+                            'current_state': decision.current_state,
+                            'success': step_success,
+                            'coordinates': coordinates,
+                            'error': step_error
+                        }
+                        yield f"data: {json.dumps(step_event)}\n\n"
+
+                        await asyncio.sleep(0.5)
+
+                    except Exception as e:
+                        import traceback
+                        print(f"[EXECUTE] Exception in step {step_num}: {traceback.format_exc()}")
+                        test_steps.append({'step_number': step_num, 'action': 'error', 'success': False, 'error': str(e)})
+                        yield f"data: {json.dumps({'event': 'step_error', 'test_id': test_id, 'step_number': step_num, 'error': str(e)})}\n\n"
+                        test_passed = False
+                        break
+
+            # ── Test complete (shared by both providers) ──
             test_status = "passed" if test_passed else "failed"
+            conclusion = ""
+            if provider == "claude" and cu_response:
+                conclusion = cu_response.text or cu_response.thinking or ""
+            elif provider != "claude" and 'decision' in dir():
+                conclusion = getattr(decision, 'reasoning', '') or ""
+            print(f"[EXECUTE] ===== Test {test_id} {test_status.upper()} =====")
+            
             if test_passed:
                 suite_results["passed"] += 1
             else:
                 suite_results["failed"] += 1
             
-            test_result = {
-                "test_id": test_id,
-                "title": test_title,
-                "status": test_status,
-                "steps": test_steps_results
-            }
-            suite_results["test_results"].append(test_result)
+            suite_results["test_results"].append({"test_id": test_id, "title": test_title, "status": test_status, "steps": test_steps})
             
-            yield f"data: {json.dumps({'event': 'test_complete', 'test_id': test_id, 'status': test_status, 'steps_executed': len(test_steps_results)})}\n\n"
-            
-            # Small delay between tests
+            test_complete_event = {'event': 'test_complete', 'test_id': test_id, 'status': test_status, 'steps_executed': len(test_steps), 'conclusion': conclusion}
+            yield f"data: {json.dumps(test_complete_event)}\n\n"
             await asyncio.sleep(1)
         
-        # Suite complete event
-        yield f"data: {json.dumps({'event': 'suite_complete', 'passed': suite_results['passed'], 'failed': suite_results['failed'], 'skipped': suite_results['skipped'], 'total': len(executable_tests)})}\n\n"
+        # Suite complete
+        suite_complete_event = {'event': 'suite_complete', 'passed': suite_results['passed'], 'failed': suite_results['failed'], 'skipped': suite_results['skipped'], 'total': len(test_cases)}
+        yield f"data: {json.dumps(suite_complete_event)}\n\n"
+        print(f"[EXECUTE] ===== Execution Finished =====")
     
     return StreamingResponse(
         execute_test_suite(),
@@ -2042,6 +2735,33 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
             "X-Accel-Buffering": "no"
         }
     )
+
+
+class ProvideGuidanceRequest(BaseModel):
+    """Request to provide guidance when agent is stuck."""
+    guidance: str
+
+
+@app.post("/feature/{context_id}/execute/{test_id}/guidance")
+async def provide_guidance(context_id: str, test_id: str, request: ProvideGuidanceRequest):
+    """
+    Provide guidance to the agent when it's stuck during test execution.
+    
+    This allows the human to give direction when the agent emits a 'need_help' event.
+    """
+    guidance_key = f"{context_id}:{test_id}"
+    
+    if guidance_key not in guidance_store:
+        guidance_store[guidance_key] = []
+    
+    guidance_store[guidance_key].append(request.guidance)
+    print(f"[GUIDANCE] Received guidance for {guidance_key}: {request.guidance}")
+    
+    return {
+        "success": True,
+        "message": "Guidance received. Agent will use this in the next step.",
+        "guidance": request.guidance
+    }
 
 
 # =============================================================================

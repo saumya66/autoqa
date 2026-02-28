@@ -21,6 +21,8 @@ from agents.vision_agent import VisionAgent
 from agents.planner_agent import PlannerAgent
 from agents.window_resolver_agent import WindowResolverAgent
 from agents.orchestrator_agent import OrchestratorAgent
+from agents.computer_use_agent import ComputerUseAgent
+from agents.claude_computer_use_agent import ClaudeComputerUseAgent
 from agents.image_context_retriever_agent import ImageContextRetrieverAgent
 from agents.document_context_retriever_agent import DocumentContextRetrieverAgent
 from agents.video_context_retriever_agent import VideoContextRetrieverAgent
@@ -34,6 +36,8 @@ __all__ = [
     "PlannerAgent",
     "WindowResolverAgent",
     "OrchestratorAgent",
+    "ComputerUseAgent",
+    "ClaudeComputerUseAgent",
     # Context retriever agents
     "ImageContextRetrieverAgent",
     "DocumentContextRetrieverAgent",

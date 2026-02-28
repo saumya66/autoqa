@@ -415,7 +415,6 @@ export interface ApproveTestsResponse {
   feature_name: string;
   test_count: number;
   test_cases: TestCase[];
-  executable_tests: ExecutableTest[];
   status: string;
   message: string;
 }
@@ -459,7 +458,7 @@ export async function getTestPlan(contextId: string): Promise<TestPlanResponse |
 }
 
 /**
- * Step 2: Approve tests and generate executable JSON
+ * Step 2: Approve tests (mark as ready for execution)
  */
 export async function approveAndGenerateTests(
   contextId: string,
@@ -474,6 +473,28 @@ export async function approveAndGenerateTests(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(error.detail || 'Failed to approve tests');
+  }
+  
+  return response.json();
+}
+
+/**
+ * Provide guidance to agent when it's stuck
+ */
+export async function provideGuidance(
+  contextId: string,
+  testId: string,
+  guidance: string
+): Promise<{ success: boolean; message: string; guidance: string }> {
+  const response = await fetch(`${BASE_URL}/feature/${contextId}/execute/${testId}/guidance`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ guidance }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'Failed to provide guidance');
   }
   
   return response.json();
@@ -506,6 +527,7 @@ export async function updateTestCase(
 export interface ExecuteTestsRequest {
   window_title: string;
   test_ids?: string[];
+  provider?: CUProvider;
 }
 
 export interface TestSuiteStartEvent {
@@ -521,29 +543,30 @@ export interface TestStartEvent {
   title: string;
   test_number: number;
   total_tests: number;
-  starting_state: string;
-  ending_state: string;
+  goal: string;  // Test case description/goal
 }
 
-export interface StepStartEvent {
-  event: 'step_start';
+export interface StepEvent {
+  event: 'step';
   test_id: string;
   step_number: number;
-  phase: 'setup' | 'test' | 'cleanup';
   action: string;
-  target: string;
-}
-
-export interface StepCompleteEvent {
-  event: 'step_complete';
-  test_id: string;
-  step_number: number;
-  phase: string;
-  action: string;
-  target: string;
+  target?: string;
+  value?: string;
+  reasoning: string;
+  current_state: string;
   success: boolean;
   coordinates?: [number, number];
   error?: string;
+}
+
+export interface NeedHelpEvent {
+  event: 'need_help';
+  test_id: string;
+  step_number: number;
+  current_state: string;
+  reasoning: string;
+  question: string;
 }
 
 export interface TestCompleteEvent {
@@ -551,6 +574,7 @@ export interface TestCompleteEvent {
   test_id: string;
   status: 'passed' | 'failed';
   steps_executed: number;
+  conclusion?: string;
 }
 
 export interface SuiteCompleteEvent {
@@ -570,8 +594,8 @@ export interface TestSkipEvent {
 export type TestExecutionEvent = 
   | TestSuiteStartEvent 
   | TestStartEvent 
-  | StepStartEvent 
-  | StepCompleteEvent 
+  | StepEvent
+  | NeedHelpEvent
   | TestCompleteEvent 
   | SuiteCompleteEvent
   | TestSkipEvent;
@@ -579,8 +603,8 @@ export type TestExecutionEvent =
 export interface ExecutionCallbacks {
   onSuiteStart?: (data: TestSuiteStartEvent) => void;
   onTestStart?: (data: TestStartEvent) => void;
-  onStepStart?: (data: StepStartEvent) => void;
-  onStepComplete?: (data: StepCompleteEvent) => void;
+  onStep?: (data: StepEvent) => void;
+  onNeedHelp?: (data: NeedHelpEvent) => void;
   onTestComplete?: (data: TestCompleteEvent) => void;
   onSuiteComplete?: (data: SuiteCompleteEvent) => void;
   onTestSkip?: (data: TestSkipEvent) => void;
@@ -638,11 +662,11 @@ export async function executeTestsStream(
                 case 'test_start':
                   callbacks.onTestStart?.(event);
                   break;
-                case 'step_start':
-                  callbacks.onStepStart?.(event);
+                case 'step':
+                  callbacks.onStep?.(event);
                   break;
-                case 'step_complete':
-                  callbacks.onStepComplete?.(event);
+                case 'need_help':
+                  callbacks.onNeedHelp?.(event);
                   break;
                 case 'test_complete':
                   callbacks.onTestComplete?.(event);
@@ -706,9 +730,8 @@ export async function executeAutoStream(
 
       buffer += decoder.decode(value, { stream: true });
       
-      // Process complete SSE messages
       const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
@@ -737,6 +760,150 @@ export async function executeAutoStream(
             } catch (e) {
               console.error('Failed to parse SSE event:', jsonStr, e);
             }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// =============================================================================
+// Computer Use SSE Types
+// =============================================================================
+
+export interface CUActionStep {
+  step_number: number;
+  action: string;
+  args: Record<string, any>;
+  success: boolean;
+  result?: Record<string, any>;
+  error?: string;
+  safety_warning?: string;
+  reasoning?: string;
+}
+
+export interface CUStartEvent {
+  event: 'start';
+  goal: string;
+  window: string;
+  max_steps: number;
+  model: string;
+}
+
+export interface CUActionEvent {
+  event: 'action';
+  step: CUActionStep;
+}
+
+export interface CUThinkingEvent {
+  event: 'thinking';
+  text: string;
+}
+
+export interface CUCompleteEvent {
+  event: 'complete';
+  status: string;
+  success: boolean;
+  steps_taken: number;
+  final_message: string;
+}
+
+export interface CUSafetyEvent {
+  event: 'safety';
+  explanation: string;
+  action: string;
+}
+
+export type CUEvent =
+  | CUStartEvent
+  | SSEStatusEvent
+  | CUActionEvent
+  | CUThinkingEvent
+  | CUCompleteEvent
+  | CUSafetyEvent
+  | SSEErrorEvent;
+
+export interface CUStreamCallbacks {
+  onStart?: (data: CUStartEvent) => void;
+  onStatus?: (message: string) => void;
+  onThinking?: (text: string) => void;
+  onAction?: (step: CUActionStep) => void;
+  onSafety?: (data: CUSafetyEvent) => void;
+  onComplete?: (data: CUCompleteEvent) => void;
+  onError?: (message: string) => void;
+}
+
+export type CUProvider = 'gemini' | 'claude';
+
+export async function executeCUStream(
+  request: ExecutionRequest,
+  callbacks: CUStreamCallbacks,
+  provider: CUProvider = 'claude'
+): Promise<void> {
+  const endpoint = provider === 'claude' ? '/claude-cu/stream' : '/cu/stream';
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      instruction: request.instruction,
+      window_title: request.window_title,
+      max_steps: request.max_steps || 25,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(error.detail || 'Execution failed');
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+          try {
+            const event = JSON.parse(jsonStr) as CUEvent;
+            switch (event.event) {
+              case 'start':
+                callbacks.onStart?.(event);
+                break;
+              case 'status':
+                callbacks.onStatus?.(event.message);
+                break;
+              case 'thinking':
+                callbacks.onThinking?.(event.text);
+                break;
+              case 'action':
+                callbacks.onAction?.(event.step);
+                break;
+              case 'safety':
+                callbacks.onSafety?.(event);
+                break;
+              case 'complete':
+                callbacks.onComplete?.(event);
+                break;
+              case 'error':
+                callbacks.onError?.(event.message);
+                break;
+            }
+          } catch (e) {
+            console.error('Failed to parse CU event:', jsonStr, e);
           }
         }
       }
