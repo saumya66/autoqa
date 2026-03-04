@@ -22,6 +22,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 import asyncio
 import json
+from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,10 +55,17 @@ from windows import (
     get_window_by_title,
     list_windows,
 )
+from cloud_client import (
+    is_configured as cloud_is_configured,
+    list_test_cases_by_feature as cloud_list_test_cases,
+    create_test_run as cloud_create_test_run,
+    update_test_run as cloud_update_test_run,
+    create_test_result as cloud_create_test_result,
+)
 
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from backend/.env
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 @asynccontextmanager
@@ -2354,6 +2362,10 @@ class ExecuteTestsRequest(BaseModel):
     window_title: str
     test_ids: list = None  # If None, execute all tests
     provider: str = "claude"
+    # Optional: when set and CLOUD_API_URL configured, fetch tests from cloud and save runs/results
+    cloud_feature_id: str | None = None
+    cloud_user_id: str | None = None
+    cloud_token: str | None = None
 
 
 @app.post("/feature/{context_id}/execute")
@@ -2374,23 +2386,46 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
     print(f"[EXECUTE] Request received: context_id={context_id}, window_title={request.window_title}, provider={request.provider}")
     print(f"[EXECUTE] Request test_ids: {request.test_ids}")
     
-    # Load test plan
-    print(f"[EXECUTE] Loading test plan for context {context_id}...")
-    try:
-        tests_data = get_context_builder().get_test_plan(context_id)
-        if not tests_data:
-            print(f"[EXECUTE] ✗ No test plan found")
-            raise HTTPException(status_code=404, detail="No test plan found")
-        print(f"[EXECUTE] ✓ Test plan loaded")
-    except Exception as e:
-        print(f"[EXECUTE] ✗ Error loading test plan: {e}")
-        raise
-    
-    if tests_data.get("status") != "approved":
-        print(f"[EXECUTE] ✗ Tests not approved. Status: {tests_data.get('status')}")
-        raise HTTPException(status_code=400, detail="Tests not approved yet. Approve tests first.")
-    
-    test_cases = tests_data.get("test_cases", [])
+    # Load test plan: from cloud when logged in, else from local
+    test_cases = []
+    if cloud_is_configured() and request.cloud_feature_id and request.cloud_user_id and request.cloud_token:
+        print(f"[EXECUTE] Fetching test cases from cloud for feature {request.cloud_feature_id}...")
+        try:
+            cloud_tcs = cloud_list_test_cases(request.cloud_feature_id, token=request.cloud_token)
+            if cloud_tcs:
+                # Convert cloud format (steps_text) to execute format (steps array)
+                for tc in cloud_tcs:
+                    steps_text = tc.get("steps_text") or ""
+                    steps = [s.strip() for s in steps_text.split("\n") if s.strip()] if steps_text else []
+                    test_cases.append({
+                        "id": tc["id"],
+                        "test_key": tc.get("test_key"),
+                        "title": tc.get("title", ""),
+                        "steps": steps,
+                        "expected_result": tc.get("expected_result"),
+                        "goal": tc.get("goal"),
+                    })
+                print(f"[EXECUTE] ✓ Loaded {len(test_cases)} test cases from cloud")
+        except Exception as e:
+            print(f"[EXECUTE] ✗ Cloud fetch failed: {e}")
+            raise HTTPException(status_code=502, detail=f"Failed to fetch tests from cloud: {e}")
+    else:
+        print(f"[EXECUTE] Loading test plan for context {context_id}...")
+        try:
+            tests_data = get_context_builder().get_test_plan(context_id)
+            if not tests_data:
+                print(f"[EXECUTE] ✗ No test plan found")
+                raise HTTPException(status_code=404, detail="No test plan found")
+            print(f"[EXECUTE] ✓ Test plan loaded")
+        except Exception as e:
+            print(f"[EXECUTE] ✗ Error loading test plan: {e}")
+            raise
+
+        if tests_data.get("status") != "approved":
+            print(f"[EXECUTE] ✗ Tests not approved. Status: {tests_data.get('status')}")
+            raise HTTPException(status_code=400, detail="Tests not approved yet. Approve tests first.")
+
+        test_cases = tests_data.get("test_cases", [])
     print(f"[EXECUTE] Found {len(test_cases)} test cases")
     if not test_cases:
         print(f"[EXECUTE] ✗ No test cases found")
@@ -2430,6 +2465,25 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
         
         suite_start_event = {'event': 'suite_start', 'context_id': context_id, 'window': request.window_title, 'total_tests': len(test_cases)}
         yield f"data: {json.dumps(suite_start_event)}\n\n"
+        
+        # Cloud: create run when logged in (test cases already in cloud)
+        cloud_run_id = None
+        if cloud_is_configured() and request.cloud_feature_id and request.cloud_user_id and request.cloud_token:
+            try:
+                run_doc = cloud_create_test_run(
+                    feature_id=request.cloud_feature_id,
+                    user_id=request.cloud_user_id,
+                    provider=provider,
+                    model="claude-haiku-4-5" if provider == "claude" else "gemini",
+                    total_tests=len(test_cases),
+                    target_window=request.window_title,
+                    token=request.cloud_token,
+                )
+                if run_doc:
+                    cloud_run_id = run_doc.get("id")
+                    print(f"[EXECUTE] Cloud run created: {cloud_run_id}")
+            except Exception as e:
+                print(f"[EXECUTE] Cloud run create failed: {e}")
         
         suite_results = {"passed": 0, "failed": 0, "skipped": 0, "test_results": []}
         
@@ -2717,11 +2771,43 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
             
             suite_results["test_results"].append({"test_id": test_id, "title": test_title, "status": test_status, "steps": test_steps})
             
+            # Cloud: save test result (test_case id from cloud data)
+            if cloud_run_id:
+                cloud_tc_id = test_case.get("id")  # Cloud test cases have id from DB
+                if cloud_tc_id:
+                    try:
+                        cloud_create_test_result(
+                            run_id=cloud_run_id,
+                            test_case_id=str(cloud_tc_id),
+                            status=test_status,
+                            conclusion=conclusion or None,
+                            steps=test_steps,
+                            steps_executed=len(test_steps),
+                            token=request.cloud_token,
+                        )
+                    except Exception as e:
+                        print(f"[EXECUTE] Cloud result save failed: {e}")
+            
             test_complete_event = {'event': 'test_complete', 'test_id': test_id, 'status': test_status, 'steps_executed': len(test_steps), 'conclusion': conclusion}
             yield f"data: {json.dumps(test_complete_event)}\n\n"
             await asyncio.sleep(1)
         
         # Suite complete
+        if cloud_run_id:
+            try:
+                from datetime import datetime, timezone
+                cloud_update_test_run(
+                    cloud_run_id,
+                    token=request.cloud_token,
+                    status="completed",
+                    passed=suite_results["passed"],
+                    failed=suite_results["failed"],
+                    skipped=suite_results["skipped"],
+                    completed_at=datetime.now(timezone.utc).isoformat(),
+                )
+            except Exception as e:
+                print(f"[EXECUTE] Cloud run update failed: {e}")
+        
         suite_complete_event = {'event': 'suite_complete', 'passed': suite_results['passed'], 'failed': suite_results['failed'], 'skipped': suite_results['skipped'], 'total': len(test_cases)}
         yield f"data: {json.dumps(suite_complete_event)}\n\n"
         print(f"[EXECUTE] ===== Execution Finished =====")

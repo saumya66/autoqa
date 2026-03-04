@@ -528,6 +528,10 @@ export interface ExecuteTestsRequest {
   window_title: string;
   test_ids?: string[];
   provider?: CUProvider;
+  /** When set with cloud_user_id and cloud_token, fetches tests from cloud and saves runs/results */
+  cloud_feature_id?: string;
+  cloud_user_id?: string;
+  cloud_token?: string;
 }
 
 export interface TestSuiteStartEvent {
