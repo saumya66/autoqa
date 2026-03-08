@@ -29,7 +29,7 @@ function ExecutePage() {
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-void-50">Target Window</h2>
             <button
-              onClick={refetchWindows}
+              onClick={() => refetchWindows()}
               disabled={loadingWindows}
               className="no-drag text-xs text-plasma-400 hover:text-plasma-300 disabled:opacity-50"
             >

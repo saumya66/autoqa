@@ -41,8 +41,13 @@ function cuStepToStepResult(step: CUActionStep, thinking: string): StepResult {
     hold_key: 'hold key',
   };
 
+  const args = step.args as Record<string, unknown>;
   let target: string | undefined;
-  const { text, url, direction, keys, coordinate } = step.args;
+  const text = args.text as string | undefined;
+  const url = args.url as string | undefined;
+  const direction = args.direction as string | undefined;
+  const keys = args.keys as string | undefined;
+  const coordinate = args.coordinate as [number, number] | undefined;
   if (text) target = `"${text}"`;
   else if (url) target = url;
   else if (keys) target = keys;
@@ -51,8 +56,8 @@ function cuStepToStepResult(step: CUActionStep, thinking: string): StepResult {
   let value: string | undefined;
   if (coordinate) {
     value = `(${coordinate[0]}, ${coordinate[1]})`;
-  } else if (step.args.x !== undefined && step.args.y !== undefined) {
-    value = `(${step.args.x}, ${step.args.y})`;
+  } else if (args.x !== undefined && args.y !== undefined) {
+    value = `(${args.x}, ${args.y})`;
   }
 
   return {

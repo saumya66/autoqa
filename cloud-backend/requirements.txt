@@ -13,7 +13,7 @@ certifi
 pydantic-settings
 
 # Auth
-passlib[bcrypt]
+bcrypt>=4.0
 python-jose[cryptography]
 email-validator
 

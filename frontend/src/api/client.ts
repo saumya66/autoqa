@@ -1,6 +1,38 @@
 // API Client for AutoQA Backend
+// Per frontend_architecture_guide: Axios with interceptors
 
-const BASE_URL = 'http://localhost:8000';
+import axios from 'axios';
+import { getBaseUrl } from './config';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request: Set baseURL from getBaseUrl (supports Electron runtime config)
+apiClient.interceptors.request.use(
+  async (config) => {
+    const baseUrl = await getBaseUrl();
+    config.baseURL = baseUrl;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response: Pass through, 401 handling can be added when auth exists
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => Promise.reject(error)
+);
+
+export default apiClient;
+
+// Re-export for streaming (fetch required - Axios doesn't support SSE in browser)
+export { getBaseUrl } from './config';
 
 export interface WindowInfo {
   id: string;
@@ -44,21 +76,17 @@ export interface ExecutionRequest {
 
 // Fetch available windows
 export async function getWindows(): Promise<WindowInfo[]> {
-  const response = await fetch(`${BASE_URL}/windows`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch windows: ${response.statusText}`);
-  }
-  return response.json();
+  const response = await apiClient.get<WindowInfo[]>('/windows');
+  return response.data;
 }
 
 // Check backend health
 export async function checkHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${BASE_URL}/windows`, { 
-      method: 'GET',
-      signal: AbortSignal.timeout(3000) 
+    const response = await apiClient.get('/windows', {
+      timeout: 3000,
     });
-    return response.ok;
+    return response.status === 200;
   } catch {
     return false;
   }
@@ -66,34 +94,20 @@ export async function checkHealth(): Promise<boolean> {
 
 // Execute autonomous task
 export async function executeAuto(request: ExecutionRequest): Promise<AutoResponse> {
-  const response = await fetch(`${BASE_URL}/auto`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      instruction: request.instruction,
-      window_title: request.window_title,
-      max_steps: request.max_steps || 15,
-    }),
+  const response = await apiClient.post<AutoResponse>('/auto', {
+    instruction: request.instruction,
+    window_title: request.window_title,
+    max_steps: request.max_steps || 15,
   });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Execution failed');
-  }
-  
-  return response.json();
+  return response.data;
 }
 
-// Get screenshot of a window (we'll add this endpoint to backend)
+// Get screenshot of a window
 export async function getWindowScreenshot(windowTitle: string): Promise<string> {
-  const response = await fetch(`${BASE_URL}/screenshot?window_title=${encodeURIComponent(windowTitle)}`);
-  if (!response.ok) {
-    throw new Error('Failed to get screenshot');
-  }
-  const data = await response.json();
-  return data.screenshot; // base64 encoded
+  const response = await apiClient.get<{ screenshot: string }>(
+    `/screenshot?window_title=${encodeURIComponent(windowTitle)}`
+  );
+  return response.data.screenshot;
 }
 
 // =============================================================================
@@ -132,10 +146,6 @@ export interface SSEErrorEvent {
 
 export type SSEEvent = SSEStartEvent | SSEStatusEvent | SSEStepEvent | SSECompleteEvent | SSEErrorEvent;
 
-// =============================================================================
-// SSE Streaming Execution
-// =============================================================================
-
 export interface StreamCallbacks {
   onStart?: (data: SSEStartEvent) => void;
   onStatus?: (message: string) => void;
@@ -145,14 +155,14 @@ export interface StreamCallbacks {
 }
 
 // =============================================================================
-// Feature Context Types (for Test Generation)
+// Feature Context Types
 // =============================================================================
 
 export interface ContextItem {
   id: string;
   type: 'image' | 'document' | 'video' | 'text';
   source_name: string;
-  extracted: Record<string, any>;
+  extracted: Record<string, unknown>;
   created_at: string;
 }
 
@@ -186,46 +196,22 @@ export async function createFeatureContext(request: CreateContextRequest): Promi
   name: string;
   created_at: string;
 }> {
-  const response = await fetch(`${BASE_URL}/feature/create`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to create context');
-  }
-  
-  const data = await response.json();
-  return data;
+  const response = await apiClient.post('/feature/create', request);
+  return response.data;
 }
 
 export async function listFeatureContexts(): Promise<FeatureContext[]> {
-  const response = await fetch(`${BASE_URL}/feature/list`);
-  if (!response.ok) {
-    throw new Error('Failed to fetch contexts');
-  }
-  const data = await response.json();
-  return data.contexts;
+  const response = await apiClient.get<{ contexts: FeatureContext[] }>('/feature/list');
+  return response.data.contexts;
 }
 
 export async function getFeatureContext(contextId: string): Promise<FeatureContext> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}`);
-  if (!response.ok) {
-    throw new Error('Context not found');
-  }
-  const data = await response.json();
-  return data.context;
+  const response = await apiClient.get<{ context: FeatureContext }>(`/feature/${contextId}`);
+  return response.data.context;
 }
 
 export async function deleteFeatureContext(contextId: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}`, {
-    method: 'DELETE',
-  });
-  if (!response.ok) {
-    throw new Error('Failed to delete context');
-  }
+  await apiClient.delete(`/feature/${contextId}`);
 }
 
 export async function addImageToContext(
@@ -238,18 +224,8 @@ export async function addImageToContext(
   if (additionalContext) {
     formData.append('additional_context', additionalContext);
   }
-  
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/image`, {
-    method: 'POST',
-    body: formData,
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to add image');
-  }
-  
-  return response.json();
+  const response = await apiClient.post<ContextItem>(`/feature/${contextId}/image`, formData);
+  return response.data;
 }
 
 export async function addDocumentToContext(
@@ -262,18 +238,8 @@ export async function addDocumentToContext(
   if (additionalContext) {
     formData.append('additional_context', additionalContext);
   }
-  
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/document`, {
-    method: 'POST',
-    body: formData,
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to add document');
-  }
-  
-  return response.json();
+  const response = await apiClient.post<ContextItem>(`/feature/${contextId}/document`, formData);
+  return response.data;
 }
 
 export async function addVideoToContext(
@@ -286,18 +252,8 @@ export async function addVideoToContext(
   if (additionalContext) {
     formData.append('additional_context', additionalContext);
   }
-  
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/video`, {
-    method: 'POST',
-    body: formData,
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to add video');
-  }
-  
-  return response.json();
+  const response = await apiClient.post<ContextItem>(`/feature/${contextId}/video`, formData);
+  return response.data;
 }
 
 export async function addTextToContext(
@@ -305,18 +261,11 @@ export async function addTextToContext(
   text: string,
   sourceName?: string
 ): Promise<ContextItem> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/text`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, source_name: sourceName || 'user_notes' }),
+  const response = await apiClient.post<ContextItem>(`/feature/${contextId}/text`, {
+    text,
+    source_name: sourceName || 'user_notes',
   });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to add text');
-  }
-  
-  return response.json();
+  return response.data;
 }
 
 // =============================================================================
@@ -332,10 +281,10 @@ export interface ProcessedItemSummary {
 }
 
 export interface ContextSummary {
-  screens_detected: Array<{name: string; source: string; description: string}>;
-  ui_elements: Array<{type: string; label: string; location: string}>;
-  requirements: Array<{text: string; priority: string}>;
-  user_flows: Array<{name: string; steps: string[]}>;
+  screens_detected: Array<{ name: string; source: string; description: string }>;
+  ui_elements: Array<{ type: string; label: string; location: string }>;
+  requirements: Array<{ text: string; priority: string }>;
+  user_flows: Array<{ name: string; steps: string[] }>;
   text_notes: string[];
 }
 
@@ -347,25 +296,18 @@ export interface BuildContextResponse {
   processed_items: ProcessedItemSummary[];
   status: string;
   message: string;
+  has_feedback?: boolean;
 }
 
-/**
- * Build context - uploads and processes all items, returns summary
- * @param userFeedback Optional feedback/corrections to improve context understanding
- */
-export async function buildContext(contextId: string, userFeedback?: string): Promise<BuildContextResponse> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/build-context`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_feedback: userFeedback || '' }),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to build context');
-  }
-  
-  return response.json();
+export async function buildContext(
+  contextId: string,
+  userFeedback?: string
+): Promise<BuildContextResponse> {
+  const response = await apiClient.post<BuildContextResponse>(
+    `/feature/${contextId}/build-context`,
+    { user_feedback: userFeedback || '' }
+  );
+  return response.data;
 }
 
 // =============================================================================
@@ -419,116 +361,61 @@ export interface ApproveTestsResponse {
   message: string;
 }
 
-// =============================================================================
-// Test Generation API
-// =============================================================================
-
-/**
- * Step 1: Generate text-based test cases for user review
- */
 export async function generateTestPlan(contextId: string): Promise<TestPlanResponse> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/generate-plan`, {
-    method: 'POST',
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to generate test plan');
-  }
-  
-  return response.json();
+  const response = await apiClient.post<TestPlanResponse>(`/feature/${contextId}/generate-plan`);
+  return response.data;
 }
 
-/**
- * Get existing test plan (if already generated)
- */
 export async function getTestPlan(contextId: string): Promise<TestPlanResponse | null> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/tests`);
-  
-  if (response.status === 404) {
-    return null;
+  try {
+    const response = await apiClient.get<TestPlanResponse>(`/feature/${contextId}/tests`);
+    return response.data;
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) {
+      return null;
+    }
+    throw err;
   }
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to fetch test plan');
-  }
-  
-  return response.json();
 }
 
-/**
- * Step 2: Approve tests (mark as ready for execution)
- */
 export async function approveAndGenerateTests(
   contextId: string,
   approvedTestIds?: string[]
 ): Promise<ApproveTestsResponse> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/approve-tests`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ approved_test_ids: approvedTestIds }),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to approve tests');
-  }
-  
-  return response.json();
+  const response = await apiClient.post<ApproveTestsResponse>(
+    `/feature/${contextId}/approve-tests`,
+    { approved_test_ids: approvedTestIds }
+  );
+  return response.data;
 }
 
-/**
- * Provide guidance to agent when it's stuck
- */
 export async function provideGuidance(
   contextId: string,
   testId: string,
   guidance: string
 ): Promise<{ success: boolean; message: string; guidance: string }> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/execute/${testId}/guidance`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ guidance }),
+  const response = await apiClient.post(`/feature/${contextId}/execute/${testId}/guidance`, {
+    guidance,
   });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to provide guidance');
-  }
-  
-  return response.json();
+  return response.data;
 }
 
-/**
- * Update a specific test case
- */
 export async function updateTestCase(
   contextId: string,
   testId: string,
   updates: Partial<TestCase>
 ): Promise<void> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/tests/${testId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Failed to update test case');
-  }
+  await apiClient.patch(`/feature/${contextId}/tests/${testId}`, updates);
 }
 
 // =============================================================================
-// Test Execution Types
+// Test Execution Types & SSE (fetch required - Axios doesn't support SSE)
 // =============================================================================
 
 export interface ExecuteTestsRequest {
   window_title: string;
   test_ids?: string[];
   provider?: CUProvider;
-  /** When set with cloud_user_id and cloud_token, fetches tests from cloud and saves runs/results */
   cloud_feature_id?: string;
   cloud_user_id?: string;
   cloud_token?: string;
@@ -547,7 +434,7 @@ export interface TestStartEvent {
   title: string;
   test_number: number;
   total_tests: number;
-  goal: string;  // Test case description/goal
+  goal: string;
 }
 
 export interface StepEvent {
@@ -595,12 +482,12 @@ export interface TestSkipEvent {
   reason: string;
 }
 
-export type TestExecutionEvent = 
-  | TestSuiteStartEvent 
-  | TestStartEvent 
+export type TestExecutionEvent =
+  | TestSuiteStartEvent
+  | TestStartEvent
   | StepEvent
   | NeedHelpEvent
-  | TestCompleteEvent 
+  | TestCompleteEvent
   | SuiteCompleteEvent
   | TestSkipEvent;
 
@@ -615,15 +502,20 @@ export interface ExecutionCallbacks {
   onError?: (message: string) => void;
 }
 
-/**
- * Execute tests with SSE streaming
- */
+async function streamFetch(
+  url: string,
+  init?: RequestInit
+): Promise<Response> {
+  const baseUrl = await getBaseUrl();
+  return fetch(`${baseUrl}${url}`, init);
+}
+
 export async function executeTestsStream(
   contextId: string,
   request: ExecuteTestsRequest,
   callbacks: ExecutionCallbacks
 ): Promise<void> {
-  const response = await fetch(`${BASE_URL}/feature/${contextId}/execute`, {
+  const response = await streamFetch(`/feature/${contextId}/execute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(request),
@@ -631,13 +523,11 @@ export async function executeTestsStream(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Execution failed');
+    throw new Error((error as { detail?: string }).detail || 'Execution failed');
   }
 
   const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('No response body');
-  }
+  if (!reader) throw new Error('No response body');
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -648,7 +538,6 @@ export async function executeTestsStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
@@ -658,7 +547,6 @@ export async function executeTestsStream(
           if (jsonStr) {
             try {
               const event = JSON.parse(jsonStr) as TestExecutionEvent;
-              
               switch (event.event) {
                 case 'suite_start':
                   callbacks.onSuiteStart?.(event);
@@ -694,19 +582,13 @@ export async function executeTestsStream(
   }
 }
 
-// =============================================================================
-// SSE Streaming Execution
-// =============================================================================
-
 export async function executeAutoStream(
   request: ExecutionRequest,
   callbacks: StreamCallbacks
 ): Promise<void> {
-  const response = await fetch(`${BASE_URL}/auto/stream`, {
+  const response = await streamFetch('/auto/stream', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       instruction: request.instruction,
       window_title: request.window_title,
@@ -716,13 +598,11 @@ export async function executeAutoStream(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Execution failed');
+    throw new Error((error as { detail?: string }).detail || 'Execution failed');
   }
 
   const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('No response body');
-  }
+  if (!reader) throw new Error('No response body');
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -733,7 +613,6 @@ export async function executeAutoStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
@@ -742,8 +621,7 @@ export async function executeAutoStream(
           const jsonStr = line.slice(6).trim();
           if (jsonStr) {
             try {
-              const event: SSEEvent = JSON.parse(jsonStr);
-              
+              const event = JSON.parse(jsonStr) as SSEEvent;
               switch (event.event) {
                 case 'start':
                   callbacks.onStart?.(event);
@@ -774,15 +652,15 @@ export async function executeAutoStream(
 }
 
 // =============================================================================
-// Computer Use SSE Types
+// Computer Use SSE
 // =============================================================================
 
 export interface CUActionStep {
   step_number: number;
   action: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   success: boolean;
-  result?: Record<string, any>;
+  result?: { coordinates?: [number, number] };
   error?: string;
   safety_warning?: string;
   reasoning?: string;
@@ -847,7 +725,7 @@ export async function executeCUStream(
   provider: CUProvider = 'claude'
 ): Promise<void> {
   const endpoint = provider === 'claude' ? '/claude-cu/stream' : '/cu/stream';
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await streamFetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -859,7 +737,7 @@ export async function executeCUStream(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'Execution failed');
+    throw new Error((error as { detail?: string }).detail || 'Execution failed');
   }
 
   const reader = response.body?.getReader();
