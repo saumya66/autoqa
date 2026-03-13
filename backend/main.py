@@ -24,7 +24,7 @@ import asyncio
 import json
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -57,6 +57,14 @@ from windows import (
 )
 from cloud_client import (
     is_configured as cloud_is_configured,
+    auth_login as cloud_auth_login,
+    auth_register as cloud_auth_register,
+    auth_me as cloud_auth_me,
+    list_projects as cloud_list_projects,
+    create_project as cloud_create_project,
+    get_project as cloud_get_project,
+    update_project as cloud_update_project,
+    delete_project as cloud_delete_project,
     list_test_cases_by_feature as cloud_list_test_cases,
     create_test_run as cloud_create_test_run,
     update_test_run as cloud_update_test_run,
@@ -219,6 +227,38 @@ class AutoResponse(BaseModel):
 
 
 # =============================================================================
+# Projects (proxy to cloud when CLOUD_API_URL + token; requires auth)
+# =============================================================================
+
+class ProjectCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class ProjectUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+def _get_bearer_token(request: Request) -> Optional[str]:
+    auth = request.headers.get("Authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return None
+
+
+class AuthLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class AuthRegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+
+# =============================================================================
 # Endpoints
 # =============================================================================
 
@@ -226,6 +266,118 @@ class AutoResponse(BaseModel):
 async def root():
     """Health check endpoint."""
     return {"status": "ok", "service": "AutoQA", "version": "1.0.0"}
+
+
+# ─── Auth (proxy to cloud) ───────────────────────────────────────────────────
+@app.post("/auth/login")
+async def auth_login(body: AuthLoginRequest):
+    """Login. Requires cloud backend."""
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    result = cloud_auth_login(body.email, body.password)
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return result
+
+
+@app.post("/auth/register")
+async def auth_register(body: AuthRegisterRequest):
+    """Register. Requires cloud backend."""
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    result = cloud_auth_register(body.email, body.password, body.name)
+    if not result:
+        raise HTTPException(status_code=400, detail="Registration failed (email may already exist)")
+    return result
+
+
+@app.get("/auth/me")
+async def auth_me(request: Request):
+    """Get current user. Requires Bearer token."""
+    token = _get_bearer_token(request)
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user = cloud_auth_me(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
+
+
+# ─── Projects (proxy to cloud) ──────────────────────────────────────────────
+@app.get("/projects")
+async def list_projects(request: Request):
+    """List projects. Requires cloud + Bearer token."""
+    token = _get_bearer_token(request)
+    if not cloud_is_configured():
+        return []
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    projects = cloud_list_projects(token=token)
+    return projects
+
+
+@app.post("/projects")
+async def create_project(request: Request, body: ProjectCreateRequest):
+    """Create project. Requires cloud + Bearer token."""
+    token = _get_bearer_token(request)
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    project = cloud_create_project(name=body.name, description=body.description, token=token)
+    if not project:
+        raise HTTPException(status_code=502, detail="Failed to create project")
+    return project
+
+
+@app.get("/projects/{project_id}")
+async def get_project(project_id: str, request: Request):
+    """Get project by ID. Requires cloud + Bearer token."""
+    token = _get_bearer_token(request)
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    project = cloud_get_project(project_id, token=token)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@app.patch("/projects/{project_id}")
+async def update_project(project_id: str, request: Request, body: ProjectUpdateRequest):
+    """Update project. Requires cloud + Bearer token."""
+    token = _get_bearer_token(request)
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        project = cloud_get_project(project_id, token=token)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        return project
+    project = cloud_update_project(project_id, token=token, **updates)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
+@app.delete("/projects/{project_id}")
+async def delete_project(project_id: str, request: Request):
+    """Delete project. Requires cloud + Bearer token."""
+    token = _get_bearer_token(request)
+    if not cloud_is_configured():
+        raise HTTPException(status_code=503, detail="Cloud backend not configured")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    ok = cloud_delete_project(project_id, token=token)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"ok": True}
 
 
 @app.get("/windows", response_model=list[WindowResponse])

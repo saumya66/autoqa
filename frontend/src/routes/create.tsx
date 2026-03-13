@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { 
   Plus, 
   FileText, 
@@ -63,7 +63,7 @@ interface TextNote {
   text: string;
 }
 
-function CreateTestPage() {
+export function CreateTestPage() {
   // Step 1: Feature details
   const [featureName, setFeatureName] = useState('');
   const [featureDescription, setFeatureDescription] = useState('');
@@ -1396,6 +1396,14 @@ function CreateTestPage() {
   );
 }
 
+import { useAuthStore } from '@/store/authStore';
+
 export const Route = createFileRoute('/create')({
+  beforeLoad: () => {
+    const { token, skipped } = useAuthStore.getState();
+    if (token || skipped) {
+      throw redirect({ to: '/app/create' });
+    }
+  },
   component: CreateTestPage,
 });

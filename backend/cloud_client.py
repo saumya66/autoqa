@@ -48,6 +48,28 @@ def _request(
         return 0, None
 
 
+# ─── Auth ───────────────────────────────────────────────────────────────────
+def auth_login(email: str, password: str) -> Optional[dict]:
+    """Login. Returns {access_token, user} or None."""
+    code, data = _request("POST", "/api/v1/auth/login", json={"email": email, "password": password})
+    return data if code == 200 else None
+
+
+def auth_register(email: str, password: str, name: Optional[str] = None) -> Optional[dict]:
+    """Register. Returns {access_token, user} or None."""
+    payload = {"email": email, "password": password}
+    if name:
+        payload["name"] = name
+    code, data = _request("POST", "/api/v1/auth/register", json=payload)
+    return data if code in (200, 201) else None
+
+
+def auth_me(token: str) -> Optional[dict]:
+    """Get current user. Returns user dict or None."""
+    code, data = _request("GET", "/api/v1/auth/me", token=token)
+    return data if code == 200 else None
+
+
 # ─── Projects ───────────────────────────────────────────────────────────────
 def create_project(name: str, description: Optional[str] = None, token: Optional[str] = None) -> Optional[dict]:
     code, data = _request("POST", "/api/v1/projects/", json={"name": name, "description": description}, token=token)
@@ -57,6 +79,21 @@ def create_project(name: str, description: Optional[str] = None, token: Optional
 def list_projects(token: Optional[str] = None) -> list:
     code, data = _request("GET", "/api/v1/projects/", token=token)
     return data if code == 200 else []
+
+
+def get_project(project_id: str, token: Optional[str] = None) -> Optional[dict]:
+    code, data = _request("GET", f"/api/v1/projects/{project_id}", token=token)
+    return data if code == 200 else None
+
+
+def update_project(project_id: str, token: Optional[str] = None, **fields) -> Optional[dict]:
+    code, data = _request("PATCH", f"/api/v1/projects/{project_id}", json=fields, token=token)
+    return data if code == 200 else None
+
+
+def delete_project(project_id: str, token: Optional[str] = None) -> bool:
+    code, _ = _request("DELETE", f"/api/v1/projects/{project_id}", token=token)
+    return code in (200, 204)
 
 
 # ─── Features ───────────────────────────────────────────────────────────────

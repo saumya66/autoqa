@@ -8,10 +8,18 @@ _client: MongoClient | None = None
 _db: Database | None = None
 
 
+def _is_atlas_uri(uri: str) -> bool:
+    """True if URI points to MongoDB Atlas (requires TLS)."""
+    return "mongodb.net" in uri or uri.startswith("mongodb+srv://")
+
+
 def get_client() -> MongoClient:
     global _client
     if _client is None:
-        _client = MongoClient(settings.MONGODB_URI, tlsCAFile=certifi.where())
+        if _is_atlas_uri(settings.MONGODB_URI):
+            _client = MongoClient(settings.MONGODB_URI, tlsCAFile=certifi.where())
+        else:
+            _client = MongoClient(settings.MONGODB_URI)
     return _client
 
 

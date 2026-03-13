@@ -1,28 +1,6 @@
 ---
-alwaysApply: false
+alwaysApply: true
 ---
-# Frontend Architecture Blueprint
-
-> **Purpose**: This document describes a production-ready React frontend architecture. Feed this to an AI when starting a new project to replicate similar constructs—state management, API layer, routing, layout, sidebar, UI patterns, and analytics.
-
----
-
-## Table of Contents
-
-1. [Tech Stack & Packages](#1-tech-stack--packages)
-2. [Project Structure](#2-project-structure)
-3. [State Management](#3-state-management)
-4. [API Management](#4-api-management)
-5. [Routing](#5-routing)
-6. [Layout & Sidebar](#6-layout--sidebar)
-7. [UI Components & Styling](#7-ui-components--styling)
-8. [Glass Components](#8-glass-components)
-9. [Analytics](#9-analytics)
-10. [Error Handling](#10-error-handling)
-11. [Key Patterns Summary](#11-key-patterns-summary)
-
----
-
 ## 1. Tech Stack & Packages
 
 ### Core
@@ -107,36 +85,25 @@ src/
 │   └── feedback.api.ts
 │
 ├── components/
-│   ├── ui/                  # Base primitives (shadcn-style, see Recommended Starter Components)
-│   │   ├── accordion.tsx
-│   │   ├── avatar.tsx
-│   │   ├── breadcrumb.tsx
+│   ├── ui/                  # Base primitives (shadcn-style)
 │   │   ├── button.tsx
-│   │   ├── button-group.tsx
-│   │   ├── dialog.tsx
-│   │   ├── drawer.tsx
-│   │   ├── dropdown-menu.tsx
-│   │   ├── field.tsx
-│   │   ├── input.tsx
-│   │   ├── label.tsx
-│   │   ├── popover.tsx
-│   │   ├── select.tsx
-│   │   ├── separator.tsx
-│   │   ├── sheet.tsx
 │   │   ├── sidebar.tsx
-│   │   ├── skeleton.tsx
-│   │   ├── sonner.tsx
-│   │   ├── spinner.tsx
-│   │   ├── table.tsx
-│   │   ├── tabs.tsx
-│   │   ├── textarea.tsx
-│   │   ├── tooltip.tsx
+│   │   ├── dialog.tsx
+│   │   ├── dropdown-menu.tsx
+│   │   ├── sheet.tsx
+│   │   └── ...
+│   ├── ProjectsSection/     # Feature folder: all related components
+│   │   ├── index.ts         # Barrel export
+│   │   ├── ProjectsSection.tsx
+│   │   └── ProjectCard.tsx
+│   ├── common/              # Standalone components (no feature folder)
+│   │   ├── app-sidebar.tsx
+│   │   ├── StatusBar.tsx
 │   │   └── ...
 │   ├── landing/             # Feature-specific
 │   │   └── ui/
 │   │       ├── GlassCard.tsx
 │   │       └── GlassButton.tsx
-│   ├── app-sidebar.tsx      # App-specific sidebar
 │   └── ...
 │
 ├── hooks/
@@ -197,6 +164,44 @@ export default defineConfig({
 ```
 
 Use `@/components`, `@/lib`, `@/store`, etc.
+
+### Component Folder Structure
+
+**Feature folders** – For larger sections or features, create a folder first and put all related files inside:
+
+```
+components/
+├── ProjectsSection/
+│   ├── index.ts           # Barrel export
+│   ├── ProjectsSection.tsx
+│   └── ProjectCard.tsx
+├── CreateTestFlow/
+│   ├── index.ts
+│   ├── CreateTestFlow.tsx
+│   └── ...
+```
+
+- Each feature folder contains all related components for that section
+- Use `index.ts` to re-export public API
+- Keep **separate files for separate components** – one component per file
+
+**Common folder** – For standalone components that don't belong to a specific feature:
+
+```
+components/
+├── common/
+│   ├── app-sidebar.tsx
+│   ├── StatusBar.tsx
+│   └── ScrollToTop.tsx
+```
+
+- Use `common/` for individual, reusable components
+- No feature folder needed for one-off or shared components
+
+**Summary**:
+- **Bigger sections** → Create a folder first, then add files inside (e.g. `ProjectsSection/`)
+- **Individual components** → Place in `common/`
+- **One component per file** – avoid stacking multiple components in a single file
 
 ---
 
@@ -574,7 +579,33 @@ export function ScrollToTop() {
 
 ## 6. Layout & Sidebar
 
-### App Layout (Authenticated Shell)
+This section explains **exactly** how the sidebar renders on the left with content on the right, and how the content area expands/collapses when the sidebar is toggled.
+
+---
+
+### 6.1 Layout Overview: Sidebar Left, Content Right
+
+The layout uses a **flex container** with two siblings:
+
+1. **Sidebar** – Fixed on the left, with a **reserved gap** in the document flow
+2. **SidebarInset** – Main content, `flex-1` so it fills remaining space
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  SidebarProvider (flex min-h-svh w-full)                     │
+│  ┌──────────────┬──────────────────────────────────────────┤
+│  │   Sidebar    │  SidebarInset (flex-1)                    │
+│  │   (left)     │  Main content area                        │
+│  │              │  Expands when sidebar collapses           │
+│  └──────────────┴──────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Critical**: `AppSidebar` and `SidebarInset` must be **siblings** inside `SidebarProvider`. Order matters: Sidebar first, then SidebarInset.
+
+---
+
+### 6.2 App Layout (Exact Code)
 
 ```tsx
 // src/routes/_authenticated/app.tsx
@@ -595,7 +626,6 @@ function AppPage() {
   const isMobile = useIsMobile()
   const { activeSection } = useAppStore()
 
-  // Optional: Block mobile devices with a message
   if (isMobile) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-slate-950 p-4">
@@ -606,14 +636,14 @@ function AppPage() {
 
   const renderSection = () => {
     switch (activeSection) {
-      case 'section1':
-        return <Section1 />
-      case 'section2':
-        return <Section2 />
-      case 'section3':
-        return <Section3 />
+      case 'quick':
+        return <QuickSection />
+      case 'workflow':
+        return <WorkflowSection />
+      case 'dashboard':
+        return <Dashboard />
       default:
-        return <DefaultSection />
+        return <QuickSection />
     }
   }
 
@@ -628,7 +658,192 @@ function AppPage() {
 }
 ```
 
-### App Sidebar (Full Implementation)
+---
+
+### 6.3 How Sidebar Left + Content Right Works (DOM Structure)
+
+`SidebarProvider` renders a flex wrapper:
+
+```tsx
+// Inside SidebarProvider
+<div
+  data-slot="sidebar-wrapper"
+  style={{
+    '--sidebar-width': '12rem',
+    '--sidebar-width-icon': '3rem',
+  }}
+  className="group/sidebar-wrapper flex min-h-svh w-full"
+>
+  {children}  {/* AppSidebar, then SidebarInset */}
+</div>
+```
+
+`flex` + `w-full` makes children lay out horizontally. The first child (Sidebar) and second child (SidebarInset) sit **side by side**.
+
+---
+
+### 6.4 The Sidebar Gap: Why Content Expands When Sidebar Collapses
+
+The sidebar uses a **two-part structure**:
+
+1. **sidebar-gap** – A div that **reserves space** in the document flow. Its `width` changes based on `data-state` and `data-collapsible`.
+2. **sidebar-container** – The actual sidebar UI, `position: fixed`, overlays the left edge.
+
+The **sidebar-gap** is the key. It participates in the flex layout. When its width shrinks (sidebar collapse), the sibling `SidebarInset` (with `flex-1`) automatically grows.
+
+**Exact code from `sidebar.tsx` (desktop, non-mobile):**
+
+```tsx
+// The Sidebar component (desktop) - simplified structure
+return (
+  <div
+    className="group peer text-sidebar-foreground hidden md:block"
+    data-state={state}                    // "expanded" | "collapsed"
+    data-collapsible={state === 'collapsed' ? collapsible : ''}  // "icon" when collapsed
+    data-variant={variant}
+    data-side={side}
+  >
+    {/* PART 1: The gap - reserves space, animates width */}
+    <div
+      data-slot="sidebar-gap"
+      className={cn(
+        'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear',
+        'group-data-[collapsible=offcanvas]:w-0',           // offcanvas: no gap when collapsed
+        'group-data-[side=right]:rotate-180',
+        variant === 'floating' || variant === 'inset'
+          ? 'group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]'
+          : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon)',  // icon: 3rem when collapsed
+      )}
+    />
+
+    {/* PART 2: The fixed sidebar - overlays the left */}
+    <div
+      data-slot="sidebar-container"
+      className={cn(
+        'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex',
+        side === 'left'
+          ? 'left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]'
+          : 'right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]',
+        variant === 'floating' || variant === 'inset'
+          ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'
+          : 'group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l',
+      )}
+    >
+      <div
+        data-sidebar="sidebar"
+        className="bg-sidebar flex h-full w-full flex-col"
+      >
+        {children}
+      </div>
+    </div>
+  </div>
+)
+```
+
+**Width behavior for `collapsible="icon"` (default for AppSidebar):**
+
+| State     | sidebar-gap width | sidebar-container width | Content area |
+|----------|-------------------|--------------------------|--------------|
+| Expanded | `12rem`           | `12rem`                  | Fills rest   |
+| Collapsed| `3rem`            | `3rem`                   | Expands by 9rem |
+
+`transition-[width] duration-200 ease-linear` on both elements creates the smooth expand/collapse animation.
+
+---
+
+### 6.5 SidebarInset: Content That Expands
+
+```tsx
+// SidebarInset - the main content area
+function SidebarInset({ className, ...props }: React.ComponentProps<'main'>) {
+  return (
+    <main
+      data-slot="sidebar-inset"
+      className={cn(
+        'bg-background relative flex w-full flex-1 flex-col',
+        'md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 ...',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+```
+
+- `flex-1` – Takes all remaining space in the flex container. When the sidebar gap shrinks, this grows.
+- `peer` on the Sidebar – SidebarInset can target the sidebar via `peer-data-[...]` for variant-specific styles.
+
+---
+
+### 6.6 Visual Flow Summary
+
+```
+SidebarProvider (flex)
+│
+├── Sidebar (group peer)
+│   ├── sidebar-gap (in flow, width animates 12rem ↔ 3rem)
+│   └── sidebar-container (fixed, overlays left)
+│       └── Sidebar content (header, menu, footer)
+│
+└── SidebarInset (flex-1, grows when gap shrinks)
+    └── Your app content
+```
+
+When user clicks toggle:
+
+1. `open` → `false`, `state` → `"collapsed"`
+2. Parent gets `data-state="collapsed"` and `data-collapsible="icon"`
+3. `sidebar-gap` width: `12rem` → `3rem` (transition 200ms)
+4. `sidebar-container` width: `12rem` → `3rem` (transition 200ms)
+5. `SidebarInset` (flex-1) grows by 9rem as the gap shrinks
+
+---
+
+### 6.7 Constants and Configuration
+
+```ts
+// In sidebar.tsx
+const SIDEBAR_COOKIE_NAME = 'sidebar_state'
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7   // 7 days
+const SIDEBAR_WIDTH = '12rem'                      // Expanded width
+const SIDEBAR_WIDTH_MOBILE = '18rem'
+const SIDEBAR_WIDTH_ICON = '3rem'                 // Collapsed (icon-only) width
+const SIDEBAR_KEYBOARD_SHORTCUT = 'b'             // Cmd/Ctrl+B toggles
+```
+
+`SidebarProvider` injects these as CSS variables:
+
+```tsx
+style={{
+  '--sidebar-width': SIDEBAR_WIDTH,
+  '--sidebar-width-icon': SIDEBAR_WIDTH_ICON,
+}}
+```
+
+---
+
+### 6.8 Sidebar Animation (global.css)
+
+If your app has a global `* { transition-property: ... }` rule (e.g. for buttons, inputs), it typically excludes `width` and `left`/`right`. That overrides the sidebar's Tailwind `transition-[width]` classes, causing the sidebar to **snap** instead of **animate** when expanding/collapsing.
+
+Add this to `globals.css` (or your main stylesheet) so the sidebar animates smoothly:
+
+```css
+/* Sidebar expand/collapse animation - must override global * transition
+   (global * excludes width/left/right, so sidebar would snap instead of animate) */
+[data-slot="sidebar-gap"],
+[data-slot="sidebar-container"] {
+  transition-property: width, left, right;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+```
+
+Place this **after** any global transition rule. The attribute selectors ensure these elements get the correct transition for `width`, `left`, and `right`.
+
+---
+
+### 6.9 App Sidebar (Full Implementation)
 
 ```tsx
 // src/components/app-sidebar.tsx
@@ -751,28 +966,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 }
 ```
 
-### Sidebar Primitives (shadcn-style)
+### 6.10 Sidebar Primitives Reference
 
-The sidebar uses these primitives from `@/components/ui/sidebar`:
+| Primitive | Purpose |
+|-----------|---------|
+| `SidebarProvider` | Flex wrapper, context, cookie persistence, Cmd/Ctrl+B |
+| `Sidebar` | Renders sidebar-gap + fixed sidebar container |
+| `SidebarHeader` | Top section (logo, toggle) |
+| `SidebarContent` | Scrollable menu area |
+| `SidebarFooter` | Bottom section (user dropdown) |
+| `SidebarGroup`, `SidebarGroupContent` | Menu grouping |
+| `SidebarMenu`, `SidebarMenuItem`, `SidebarMenuButton` | Menu items |
+| `SidebarInset` | Main content (`flex-1`) |
+| `SidebarRail` | Clickable rail to expand when collapsed |
+| `useSidebar()` | `{ state, toggleSidebar, open, ... }` |
 
-- `SidebarProvider` – Context, cookie persistence, keyboard shortcut (Cmd/Ctrl+B)
-- `Sidebar` – Main container, `collapsible="icon"` for icon-only collapse
-- `SidebarHeader`, `SidebarContent`, `SidebarFooter`
-- `SidebarGroup`, `SidebarGroupContent`
-- `SidebarMenu`, `SidebarMenuItem`, `SidebarMenuButton`
-- `SidebarInset` – Main content area
-- `SidebarRail` – Toggle rail when collapsed
-- `useSidebar()` – Access state, `toggleSidebar`, etc.
+---
 
-Constants in sidebar.tsx:
+### 6.11 Collapsible Modes
 
-```ts
-const SIDEBAR_COOKIE_NAME = 'sidebar_state'
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = '12rem'
-const SIDEBAR_WIDTH_ICON = '3rem'
-const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
-```
+| `collapsible` | Expanded | Collapsed |
+|---------------|----------|-----------|
+| `"icon"` | Full width (12rem) | Icon-only (3rem) |
+| `"offcanvas"` | Full width | Hidden (slides off, gap = 0) |
+| `"none"` | Always full width | N/A |
 
 ---
 
@@ -816,40 +1033,6 @@ export function cn(...inputs: ClassValue[]) {
   }
 }
 ```
-
-### Recommended shadcn/ui Starter Components
-
-Install these components to start with (new-york style):
-
-```bash
-npx shadcn@latest add accordion avatar breadcrumb button button-group dialog drawer dropdown-menu field input label popover select separator sheet sidebar skeleton sonner spinner table tabs textarea tooltip --yes --overwrite
-```
-
-| Component | File |
-|-----------|------|
-| Accordion | accordion.tsx |
-| Avatar | avatar.tsx |
-| Breadcrumb | breadcrumb.tsx |
-| Button | button.tsx |
-| Button Group | button-group.tsx |
-| Dialog | dialog.tsx |
-| Drawer | drawer.tsx |
-| Dropdown Menu | dropdown-menu.tsx |
-| Field | field.tsx |
-| Input | input.tsx |
-| Label | label.tsx |
-| Popover | popover.tsx |
-| Select | select.tsx |
-| Separator | separator.tsx |
-| Sheet | sheet.tsx |
-| Sidebar | sidebar.tsx |
-| Skeleton | skeleton.tsx |
-| Sonner | sonner.tsx |
-| Spinner | spinner.tsx |
-| Table | table.tsx |
-| Tabs | tabs.tsx |
-| Textarea | textarea.tsx |
-| Tooltip | tooltip.tsx |
 
 ### CSS Variables (index.css)
 

@@ -9,10 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ExecuteRouteImport } from './routes/execute'
 import { Route as CreateRouteImport } from './routes/create'
+import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppIndexRouteImport } from './routes/app/index'
+import { Route as AppExecuteRouteImport } from './routes/app/execute'
+import { Route as AppCreateRouteImport } from './routes/app/create'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExecuteRoute = ExecuteRouteImport.update({
   id: '/execute',
   path: '/execute',
@@ -23,44 +33,111 @@ const CreateRoute = CreateRouteImport.update({
   path: '/create',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppExecuteRoute = AppExecuteRouteImport.update({
+  id: '/execute',
+  path: '/execute',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCreateRoute = AppCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
   '/create': typeof CreateRoute
   '/execute': typeof ExecuteRoute
+  '/login': typeof LoginRoute
+  '/app/create': typeof AppCreateRoute
+  '/app/execute': typeof AppExecuteRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/execute': typeof ExecuteRoute
+  '/login': typeof LoginRoute
+  '/app/create': typeof AppCreateRoute
+  '/app/execute': typeof AppExecuteRoute
+  '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRouteWithChildren
   '/create': typeof CreateRoute
   '/execute': typeof ExecuteRoute
+  '/login': typeof LoginRoute
+  '/app/create': typeof AppCreateRoute
+  '/app/execute': typeof AppExecuteRoute
+  '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create' | '/execute'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/create'
+    | '/execute'
+    | '/login'
+    | '/app/create'
+    | '/app/execute'
+    | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create' | '/execute'
-  id: '__root__' | '/' | '/create' | '/execute'
+  to:
+    | '/'
+    | '/create'
+    | '/execute'
+    | '/login'
+    | '/app/create'
+    | '/app/execute'
+    | '/app'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/create'
+    | '/execute'
+    | '/login'
+    | '/app/create'
+    | '/app/execute'
+    | '/app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
   CreateRoute: typeof CreateRoute
   ExecuteRoute: typeof ExecuteRoute
+  LoginRoute: typeof LoginRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/execute': {
       id: '/execute'
       path: '/execute'
@@ -75,6 +152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -82,13 +166,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app/': {
+      id: '/app/'
+      path: '/'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/execute': {
+      id: '/app/execute'
+      path: '/execute'
+      fullPath: '/app/execute'
+      preLoaderRoute: typeof AppExecuteRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/create': {
+      id: '/app/create'
+      path: '/create'
+      fullPath: '/app/create'
+      preLoaderRoute: typeof AppCreateRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppCreateRoute: typeof AppCreateRoute
+  AppExecuteRoute: typeof AppExecuteRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppCreateRoute: AppCreateRoute,
+  AppExecuteRoute: AppExecuteRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
   CreateRoute: CreateRoute,
   ExecuteRoute: ExecuteRoute,
+  LoginRoute: LoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

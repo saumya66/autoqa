@@ -1,9 +1,11 @@
 /**
- * API configuration - base URL for backend requests.
- * Uses VITE_API_BASE_URL from env, or Electron IPC when available (runtime config).
+ * API configuration.
+ * - getBaseUrl: Local backend (windows, execute, feature context, etc.)
+ * - getCloudBaseUrl: Cloud backend (auth, projects)
  */
 
 let cachedBaseUrl: string | null = null;
+let cachedCloudBaseUrl: string | null = null;
 
 export async function getBaseUrl(): Promise<string> {
   if (cachedBaseUrl) return cachedBaseUrl;
@@ -15,7 +17,15 @@ export async function getBaseUrl(): Promise<string> {
   return cachedBaseUrl;
 }
 
-/** Reset cached URL (e.g. after config change) */
+export function getCloudBaseUrl(): string {
+  if (cachedCloudBaseUrl) return cachedCloudBaseUrl;
+  cachedCloudBaseUrl =
+    import.meta.env.VITE_CLOUD_API_URL || 'http://localhost:8001';
+  return cachedCloudBaseUrl;
+}
+
+/** Reset cached URLs (e.g. after config change) */
 export function clearBaseUrlCache(): void {
   cachedBaseUrl = null;
+  cachedCloudBaseUrl = null;
 }

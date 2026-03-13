@@ -4,8 +4,8 @@
 fastapi==0.109.2
 uvicorn[standard]==0.27.1
 
-# Database (MongoDB)
-pymongo>=4.0
+# Database (MongoDB) - pymongo[tls] for Atlas SSL support
+pymongo[tls]>=4.0
 dnspython>=2.6
 certifi
 

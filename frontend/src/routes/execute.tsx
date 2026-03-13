@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useAuthStore } from '@/store/authStore';
 import { WindowSelector } from '../components/WindowSelector';
 import { InstructionInput } from '../components/InstructionInput';
 import { ExecutionPanel } from '../components/ExecutionPanel';
@@ -7,7 +8,7 @@ import { useWindows } from '../hooks';
 import { useExecutionStore } from '../store/executionStore';
 import { WindowInfo, CUProvider } from '../api/client';
 
-function ExecutePage() {
+export function ExecutePage() {
   const [selectedWindow, setSelectedWindow] = useState<WindowInfo | null>(null);
   const [maxSteps, setMaxSteps] = useState(25);
   
@@ -108,5 +109,11 @@ function ExecutePage() {
 }
 
 export const Route = createFileRoute('/execute')({
+  beforeLoad: () => {
+    const { token, skipped } = useAuthStore.getState();
+    if (token || skipped) {
+      throw redirect({ to: '/app/execute' });
+    }
+  },
   component: ExecutePage,
 });

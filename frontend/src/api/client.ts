@@ -2,7 +2,8 @@
 // Per frontend_architecture_guide: Axios with interceptors
 
 import axios from 'axios';
-import { getBaseUrl } from './config';
+import { getBaseUrl, getCloudBaseUrl } from './config';
+import { useAuthStore } from '@/store/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -13,21 +14,49 @@ const apiClient = axios.create({
   },
 });
 
-// Request: Set baseURL from getBaseUrl (supports Electron runtime config)
+// Cloud API client (auth, projects) - calls cloud backend directly
+const cloudApiClient = axios.create({
+  baseURL: getCloudBaseUrl(),
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Local: Set baseURL from getBaseUrl, add auth token when available
 apiClient.interceptors.request.use(
   async (config) => {
-    const baseUrl = await getBaseUrl();
-    config.baseURL = baseUrl;
+    config.baseURL = await getBaseUrl();
+    const token = useAuthStore.getState().token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response: Pass through, 401 handling can be added when auth exists
-apiClient.interceptors.response.use(
-  (response) => response,
+// Cloud: Add auth token when available
+cloudApiClient.interceptors.request.use(
+  (config) => {
+    config.baseURL = getCloudBaseUrl();
+    const token = useAuthStore.getState().token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
   (error) => Promise.reject(error)
 );
+
+// Response: Clear auth on 401 (invalid/expired token)
+const clearAuthOn401 = (error: unknown) => {
+  if ((error as { response?: { status?: number } })?.response?.status === 401) {
+    useAuthStore.getState().clearAuth();
+  }
+  return Promise.reject(error);
+};
+apiClient.interceptors.response.use((r) => r, clearAuthOn401);
+cloudApiClient.interceptors.response.use((r) => r, clearAuthOn401);
 
 export default apiClient;
 
@@ -90,6 +119,104 @@ export async function checkHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// =============================================================================
+// Auth (proxy to cloud)
+// =============================================================================
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name?: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  const response = await cloudApiClient.post<AuthResponse>('/api/v1/auth/login', {
+    email,
+    password,
+  });
+  return response.data;
+}
+
+export async function register(
+  email: string,
+  password: string,
+  name?: string
+): Promise<AuthResponse> {
+  const response = await cloudApiClient.post<AuthResponse>('/api/v1/auth/register', {
+    email,
+    password,
+    name,
+  });
+  return response.data;
+}
+
+export async function getMe(): Promise<AuthUser> {
+  const response = await cloudApiClient.get<AuthUser>('/api/v1/auth/me');
+  return response.data;
+}
+
+// =============================================================================
+// Projects (requires auth; proxied to cloud)
+// =============================================================================
+
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCreateInput {
+  name: string;
+  description?: string;
+}
+
+export interface ProjectUpdateInput {
+  name?: string;
+  description?: string;
+}
+
+export async function listProjects(): Promise<Project[]> {
+  const response = await cloudApiClient.get<Project[]>('/api/v1/projects/');
+  return response.data;
+}
+
+export async function createProject(input: ProjectCreateInput): Promise<Project> {
+  const response = await cloudApiClient.post<Project>('/api/v1/projects/', input);
+  return response.data;
+}
+
+export async function getProject(projectId: string): Promise<Project> {
+  const response = await cloudApiClient.get<Project>(`/api/v1/projects/${projectId}`);
+  return response.data;
+}
+
+export async function updateProject(
+  projectId: string,
+  input: ProjectUpdateInput
+): Promise<Project> {
+  const response = await cloudApiClient.patch<Project>(
+    `/api/v1/projects/${projectId}`,
+    input
+  );
+  return response.data;
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  await cloudApiClient.delete(`/api/v1/projects/${projectId}`);
 }
 
 // Execute autonomous task
