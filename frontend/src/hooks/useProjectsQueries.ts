@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-query';
 import {
   listProjects,
+  getProject,
   createProject,
   updateProject,
   deleteProject,
@@ -15,6 +16,28 @@ import {
 import { useAuthStore } from '@/store/authStore';
 
 export const projectsQueryKey = ['projects'] as const;
+
+export function projectQueryKey(projectId: string) {
+  return ['projects', projectId] as const;
+}
+
+export function useProject(projectId: string | undefined) {
+  const token = useAuthStore((s) => s.token);
+
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: projectQueryKey(projectId ?? ''),
+    queryFn: () => getProject(projectId!),
+    enabled: !!token && !!projectId,
+  });
+
+  return {
+    project: data ?? null,
+    loading: isLoading,
+    error: error?.message ?? null,
+    refetch,
+    isAuthenticated: !!token,
+  };
+}
 
 export function useProjects() {
   const token = useAuthStore((s) => s.token);

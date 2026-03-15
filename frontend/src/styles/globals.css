@@ -46,7 +46,7 @@
   --color-neon-blue: #60a5fa;
   --color-neon-cyan: #22d3ee;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
-  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-display: "Funnel Sans", system-ui, sans-serif;
 }
 
 /* shadcn/ui theme variables (light theme) - hex codes */
@@ -102,6 +102,21 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
+}
+
+/* Clickable elements - cursor pointer (base for all interactive UI) */
+button:not(:disabled),
+a[href],
+[role="button"]:not(:disabled),
+[role="menuitem"],
+[role="menuitemradio"],
+[role="menuitemcheckbox"],
+[role="tab"],
+[role="option"],
+[role="switch"],
+[role="combobox"],
+[role="listbox"] {
+  cursor: pointer;
 }
 
 /* Sidebar offset when app header is present (e.g. on /app) */

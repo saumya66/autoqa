@@ -4,6 +4,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -29,6 +30,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
   const isAuthenticated = !!useAuthStore((s) => s.token);
+  const skipped = useAuthStore((s) => s.skipped);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
 
   const handleSidebarClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -101,6 +104,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {(isAuthenticated || skipped) && (
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Back to login"
+                asChild
+              >
+                <Link
+                  to="/login"
+                  onClick={() => {
+                    clearAuth();
+                  }}
+                >
+                  <span className="text-muted-foreground">Sign out</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      )}
 
       <SidebarRail />
     </Sidebar>

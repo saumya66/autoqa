@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { MoreVertical } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,22 +35,31 @@ export function ProjectCard({
   onDelete,
 }: ProjectCardProps) {
   return (
-    <Card
-      className={cn(
-        'border-0 transition-shadow hover:shadow-md',
-        viewMode === 'list' && 'flex flex-row items-center justify-between'
-      )}
+    <Link
+      to="/app/projects/$projectId"
+      params={{ projectId: project.id }}
+      className="block"
     >
-      <CardHeader className="relative">
-        <CardAction>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 -mr-2 -mt-1"
-                aria-label="More options"
-              >
+      <Card
+        className={cn(
+          'border-0 transition-shadow hover:shadow-md',
+          viewMode === 'list' && 'flex flex-row items-center justify-between'
+        )}
+      >
+        <CardHeader className="relative">
+          <CardAction>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 -mr-2 -mt-1"
+                  aria-label="More options"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                >
                 <MoreVertical className="size-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -74,6 +84,7 @@ export function ProjectCard({
           {project.description || 'No description'}
         </CardDescription>
       </CardHeader>
-    </Card>
+      </Card>
+    </Link>
   );
 }
