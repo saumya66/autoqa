@@ -175,6 +175,7 @@ export interface Project {
   user_id: string;
   name: string;
   description?: string | null;
+  context_summary?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -182,11 +183,120 @@ export interface Project {
 export interface ProjectCreateInput {
   name: string;
   description?: string;
+  context_summary?: string;
 }
 
 export interface ProjectUpdateInput {
   name?: string;
   description?: string;
+  context_summary?: string;
+}
+
+// =============================================================================
+// Features (cloud direct)
+// =============================================================================
+
+export interface Feature {
+  id: string;
+  project_id: string;
+  name: string;
+  description?: string | null;
+  context_summary?: string | null;
+  status: string;
+  provider: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createCloudFeature(
+  projectId: string,
+  name: string,
+  description?: string
+): Promise<Feature> {
+  const response = await cloudApiClient.post<Feature>('/api/v1/features/', {
+    project_id: projectId,
+    name,
+    description,
+  });
+  return response.data;
+}
+
+export async function listFeaturesByProject(projectId: string): Promise<Feature[]> {
+  const response = await cloudApiClient.get<Feature[]>(
+    `/api/v1/features/by-project/${projectId}`
+  );
+  return response.data;
+}
+
+// =============================================================================
+// Project Context Items (cloud direct)
+// =============================================================================
+
+export interface CloudContextItem {
+  id: string;
+  level: 'project' | 'feature';
+  level_id: string;
+  type: 'image' | 'text';
+  filename?: string | null;
+  /** base64 string for images; raw text content for text items */
+  content?: string | null;
+  file_size?: number | null;
+  created_at: string;
+}
+
+export async function listProjectContextItems(projectId: string): Promise<CloudContextItem[]> {
+  const response = await cloudApiClient.get<CloudContextItem[]>('/api/v1/context-items/', {
+    params: { level: 'project', level_id: projectId },
+  });
+  return response.data;
+}
+
+export interface CloudContextUpdateCallbacks {
+  onProgress?: (message: string) => void;
+  onDone?: (contextSummary: string) => void;
+  onError?: (message: string) => void;
+}
+
+export async function updateProjectContext(
+  projectId: string,
+  images: File[],
+  texts: string[],
+  callbacks: CloudContextUpdateCallbacks
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  const imagePayloads = images.length > 0
+    ? await Promise.all(images.map(async (f) => ({
+        filename: f.name,
+        content_b64: await fileToBase64(f),
+        file_size: f.size,
+      })))
+    : [];
+
+  const response = await streamLocalFetch(`/cloud/project/${projectId}/update-context`, {
+    images: imagePayloads,
+    texts,
+    token,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error((err as { detail?: string }).detail || 'Request failed');
+  }
+
+  await readSSEStream(response, (event) => {
+    const e = event as { event: string; message?: string; context_summary?: string };
+    switch (e.event) {
+      case 'progress':
+        callbacks.onProgress?.(e.message ?? '');
+        break;
+      case 'done':
+        callbacks.onDone?.(e.context_summary ?? '');
+        break;
+      case 'error':
+        callbacks.onError?.(e.message ?? 'Unknown error');
+        break;
+    }
+  });
 }
 
 export async function listProjects(): Promise<Project[]> {
@@ -845,6 +955,231 @@ export interface CUStreamCallbacks {
 }
 
 export type CUProvider = 'gemini' | 'claude';
+
+// =============================================================================
+// Cloud-backed Project + Feature Context SSE
+// =============================================================================
+
+export interface CloudSSEProgressEvent {
+  event: 'progress';
+  message: string;
+}
+export interface CloudSSEDoneProjectEvent {
+  event: 'done';
+  project: Project;
+}
+export interface CloudSSEDoneContextEvent {
+  event: 'done';
+  summary: ContextSummary;
+  context_summary: string;
+}
+export interface CloudSSEDoneTestsEvent {
+  event: 'done';
+  feature_summary: string;
+  test_cases: TestCase[];
+  coverage_notes: string;
+}
+export interface CloudSSEErrorEvent {
+  event: 'error';
+  message: string;
+}
+
+export interface CloudProjectCallbacks {
+  onProgress?: (message: string) => void;
+  onDone?: (project: Project) => void;
+  onError?: (message: string) => void;
+}
+
+export interface CloudContextCallbacks {
+  onProgress?: (message: string) => void;
+  onDone?: (summary: ContextSummary, contextSummary: string) => void;
+  onError?: (message: string) => void;
+}
+
+export interface CloudTestsCallbacks {
+  onProgress?: (message: string) => void;
+  onDone?: (featureSummary: string, testCases: TestCase[], coverageNotes: string) => void;
+  onError?: (message: string) => void;
+}
+
+async function streamLocalFetch(url: string, body: unknown): Promise<Response> {
+  const baseUrl = await getBaseUrl();
+  const token = useAuthStore.getState().token;
+  return fetch(`${baseUrl}${url}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+async function readSSEStream<T>(
+  response: Response,
+  onEvent: (event: T) => void
+): Promise<void> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body');
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr) {
+            try { onEvent(JSON.parse(jsonStr) as T); } catch { /* skip */ }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+/** Convert a File to base64 string (without data URL prefix). */
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function createProjectWithContext(
+  name: string,
+  description: string | undefined,
+  images: File[],
+  texts: string[],
+  callbacks: CloudProjectCallbacks
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  const imagePayloads = await Promise.all(
+    images.map(async (f) => ({
+      filename: f.name,
+      content_b64: await fileToBase64(f),
+      file_size: f.size,
+    }))
+  );
+  const response = await streamLocalFetch('/cloud/project/create', {
+    name,
+    description,
+    images: imagePayloads,
+    texts,
+    token,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error((err as { detail?: string }).detail || 'Request failed');
+  }
+  await readSSEStream<CloudSSEProgressEvent | CloudSSEDoneProjectEvent | CloudSSEErrorEvent>(
+    response,
+    (ev) => {
+      if (ev.event === 'progress') callbacks.onProgress?.(ev.message);
+      else if (ev.event === 'done') callbacks.onDone?.((ev as CloudSSEDoneProjectEvent).project);
+      else if (ev.event === 'error') callbacks.onError?.(ev.message);
+    }
+  );
+}
+
+export async function buildFeatureContext(
+  featureId: string,
+  projectId: string,
+  userFeedback: string | undefined,
+  callbacks: CloudContextCallbacks,
+  images?: File[],
+  texts?: string[]
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  const imagePayloads = images && images.length > 0
+    ? await Promise.all(images.map(async (f) => ({
+        filename: f.name,
+        content_b64: await fileToBase64(f),
+        file_size: f.size,
+      })))
+    : [];
+  const response = await streamLocalFetch(`/cloud/feature/${featureId}/build-context`, {
+    feature_id: featureId,
+    project_id: projectId,
+    token,
+    user_feedback: userFeedback,
+    images: imagePayloads,
+    texts: texts ?? [],
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error((err as { detail?: string }).detail || 'Request failed');
+  }
+  await readSSEStream<CloudSSEProgressEvent | CloudSSEDoneContextEvent | CloudSSEErrorEvent>(
+    response,
+    (ev) => {
+      if (ev.event === 'progress') callbacks.onProgress?.(ev.message);
+      else if (ev.event === 'done') callbacks.onDone?.((ev as CloudSSEDoneContextEvent).summary, (ev as CloudSSEDoneContextEvent).context_summary);
+      else if (ev.event === 'error') callbacks.onError?.(ev.message);
+    }
+  );
+}
+
+export async function generateFeatureTests(
+  featureId: string,
+  projectId: string,
+  callbacks: CloudTestsCallbacks,
+  provider: string = 'claude'
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  const response = await streamLocalFetch(`/cloud/feature/${featureId}/generate-tests`, {
+    feature_id: featureId,
+    project_id: projectId,
+    token,
+    provider,
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error((err as { detail?: string }).detail || 'Request failed');
+  }
+  await readSSEStream<CloudSSEProgressEvent | CloudSSEDoneTestsEvent | CloudSSEErrorEvent>(
+    response,
+    (ev) => {
+      if (ev.event === 'progress') callbacks.onProgress?.(ev.message);
+      else if (ev.event === 'done') {
+        const d = ev as CloudSSEDoneTestsEvent;
+        callbacks.onDone?.(d.feature_summary, d.test_cases, d.coverage_notes);
+      }
+      else if (ev.event === 'error') callbacks.onError?.(ev.message);
+    }
+  );
+}
+
+export async function saveFeatureTests(
+  featureId: string,
+  testCases: TestCase[]
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  const baseUrl = await getBaseUrl();
+  const response = await fetch(`${baseUrl}/cloud/feature/${featureId}/save-tests`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ feature_id: featureId, token, test_cases: testCases }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error((err as { detail?: string }).detail || 'Failed to save tests');
+  }
+}
 
 export async function executeCUStream(
   request: ExecutionRequest,

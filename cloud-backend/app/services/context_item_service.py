@@ -14,17 +14,21 @@ class ContextItemService:
         doc = db[self.COL].find_one({"_id": ObjectId(id)})
         return doc_to_dict(doc)
 
-    def get_multi_by_feature(self, db: Database, *, feature_id: str) -> List[dict]:
-        cursor = db[self.COL].find({"feature_id": feature_id}).sort("created_at", 1)
+    def get_multi_by_level(self, db: Database, *, level: str, level_id: str) -> List[dict]:
+        cursor = db[self.COL].find({"level": level, "level_id": level_id}).sort("created_at", 1)
         return [doc_to_dict(d) for d in cursor]
+
+    def delete_by_level(self, db: Database, *, level: str, level_id: str) -> int:
+        result = db[self.COL].delete_many({"level": level, "level_id": level_id})
+        return result.deleted_count
 
     def create(self, db: Database, *, data: dict) -> dict:
         doc = {
-            "feature_id": data["feature_id"],
+            "level": data["level"],
+            "level_id": data["level_id"],
             "type": data["type"],
             "filename": data.get("filename"),
             "content": data.get("content"),
-            "storage_path": data.get("storage_path"),
             "file_size": data.get("file_size"),
             "ai_summary": None,
             "processing_status": "pending",

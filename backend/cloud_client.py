@@ -6,6 +6,7 @@ from the cloud. Token is passed per-request (from frontend after login).
 """
 
 import os
+import base64
 from typing import Optional
 
 import httpx
@@ -29,6 +30,7 @@ def _request(
     path: str,
     *,
     json: Optional[dict] = None,
+    params: Optional[dict] = None,
     token: Optional[str] = None,
 ) -> tuple[int, Optional[dict]]:
     """Make HTTP request. Returns (status_code, json_body or None)."""
@@ -39,8 +41,8 @@ def _request(
     if token:
         h["Authorization"] = f"Bearer {token}"
     try:
-        with httpx.Client(timeout=30.0) as client:
-            r = client.request(method, url, headers=h, json=json)
+        with httpx.Client(timeout=60.0) as client:
+            r = client.request(method, url, headers=h, json=json, params=params)
             body = r.json() if r.content else None
             return r.status_code, body
     except Exception as e:
@@ -71,8 +73,11 @@ def auth_me(token: str) -> Optional[dict]:
 
 
 # ─── Projects ───────────────────────────────────────────────────────────────
-def create_project(name: str, description: Optional[str] = None, token: Optional[str] = None) -> Optional[dict]:
-    code, data = _request("POST", "/api/v1/projects/", json={"name": name, "description": description}, token=token)
+def create_project(name: str, description: Optional[str] = None, context_summary: Optional[str] = None, token: Optional[str] = None) -> Optional[dict]:
+    payload = {"name": name, "description": description}
+    if context_summary:
+        payload["context_summary"] = context_summary
+    code, data = _request("POST", "/api/v1/projects/", json=payload, token=token)
     return data if code in (200, 201) else None
 
 
@@ -102,24 +107,84 @@ def create_feature(project_id: str, name: str, description: Optional[str] = None
     return data if code in (200, 201) else None
 
 
+def get_feature(feature_id: str, token: Optional[str] = None) -> Optional[dict]:
+    code, data = _request("GET", f"/api/v1/features/{feature_id}", token=token)
+    return data if code == 200 else None
+
+
 def update_feature(feature_id: str, token: Optional[str] = None, **fields) -> Optional[dict]:
     code, data = _request("PATCH", f"/api/v1/features/{feature_id}", json=fields, token=token)
     return data if code == 200 else None
 
 
 # ─── Context items ──────────────────────────────────────────────────────────
-def create_context_item(feature_id: str, type: str, token: Optional[str] = None, **kwargs) -> Optional[dict]:
-    payload = {"feature_id": feature_id, "type": type, **kwargs}
+def create_context_item(level: str, level_id: str, type: str, token: Optional[str] = None, **kwargs) -> Optional[dict]:
+    payload = {"level": level, "level_id": level_id, "type": type, **kwargs}
     code, data = _request("POST", "/api/v1/context-items/", json=payload, token=token)
     return data if code in (200, 201) else None
 
 
-def list_context_items(feature_id: str, token: Optional[str] = None) -> list:
-    code, data = _request("GET", f"/api/v1/context-items/by-feature/{feature_id}", token=token)
+def list_context_items(level: str, level_id: str, token: Optional[str] = None) -> list:
+    code, data = _request("GET", "/api/v1/context-items/", params={"level": level, "level_id": level_id}, token=token)
     return data if code == 200 else []
 
 
+def delete_context_items_by_level(level: str, level_id: str, token: Optional[str] = None) -> bool:
+    code, _ = _request("DELETE", "/api/v1/context-items/by-level", params={"level": level, "level_id": level_id}, token=token)
+    return code in (200, 204)
+
+
+def save_context_items_batch(
+    level: str,
+    level_id: str,
+    images: list[dict],  # [{"filename": str, "content_b64": str, "file_size": int}]
+    texts: list[str],
+    token: Optional[str] = None,
+) -> list[dict]:
+    """
+    Replace all context items for a level: delete existing, then save new batch.
+    Images: stored as base64 in `content` field.
+    Text: stored as plain string in `content` field.
+    Returns list of created ContextItem dicts.
+    """
+    delete_context_items_by_level(level, level_id, token=token)
+    created = []
+    for img in images:
+        item = create_context_item(
+            level=level,
+            level_id=level_id,
+            type="image",
+            filename=img["filename"],
+            content=img["content_b64"],
+            file_size=img.get("file_size"),
+            token=token,
+        )
+        if item:
+            created.append(item)
+    for text in texts:
+        item = create_context_item(
+            level=level,
+            level_id=level_id,
+            type="text",
+            content=text,
+            token=token,
+        )
+        if item:
+            created.append(item)
+    return created
+
+
 # ─── Test cases ────────────────────────────────────────────────────────────
+def save_test_cases_bulk(feature_id: str, test_cases: list[dict], token: Optional[str] = None) -> list[dict]:
+    """Delete existing test cases for a feature then bulk-insert new ones."""
+    _request("DELETE", f"/api/v1/test-cases/by-feature/{feature_id}", token=token)
+    if not test_cases:
+        return []
+    payload = {"feature_id": feature_id, "items": test_cases}
+    code, resp = _request("POST", "/api/v1/test-cases/bulk", json=payload, token=token)
+    return resp if code in (200, 201) else []
+
+
 def list_test_cases_by_feature(feature_id: str, token: Optional[str] = None) -> list:
     """Fetch test cases from cloud for a feature."""
     code, data = _request("GET", f"/api/v1/test-cases/by-feature/{feature_id}", token=token)

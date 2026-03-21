@@ -24,12 +24,13 @@ class ProjectService:
         )
         return [doc_to_dict(d) for d in cursor]
 
-    def create(self, db: Database, *, user_id: str, name: str, description: Optional[str] = None) -> dict:
+    def create(self, db: Database, *, user_id: str, name: str, description: Optional[str] = None, context_summary: Optional[str] = None) -> dict:
         now = datetime.now(timezone.utc)
         doc = {
             "user_id": user_id,
             "name": name,
             "description": description,
+            "context_summary": context_summary,
             "created_at": now,
             "updated_at": now,
         }

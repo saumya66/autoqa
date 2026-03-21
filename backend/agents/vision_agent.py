@@ -131,7 +131,7 @@ If the element is not found, return: null"""
         """
         user_prompt = f'Find the UI element: "{instruction}"'
         
-        response_text = self.call_gemini(
+        response_text = self.call_llm(
             user_prompt=user_prompt,
             image_bytes=screenshot_bytes,
             max_tokens=256

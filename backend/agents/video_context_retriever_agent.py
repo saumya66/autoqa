@@ -241,7 +241,7 @@ Frame sequence follows:"""
             for i, frame_bytes in enumerate(frames):
                 frame_prompt = f"Frame {i + 1} of {len(frames)}. Describe what you see on this screen."
                 
-                response = self.call_gemini(
+                response = self.call_llm(
                     user_prompt=frame_prompt,
                     image_bytes=frame_bytes,
                     max_tokens=512
@@ -268,7 +268,7 @@ Identify the user actions that occurred between frames. What did the user click,
 
 Respond with the structured JSON as specified."""
             
-            final_response = self.call_gemini(
+            final_response = self.call_llm(
                 user_prompt=analysis_prompt,
                 max_tokens=2048
             )

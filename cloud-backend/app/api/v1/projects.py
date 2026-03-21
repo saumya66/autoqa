@@ -29,6 +29,7 @@ def create_project(
         user_id=current_user["id"],
         name=body.name,
         description=body.description,
+        context_summary=body.context_summary,
     )
     return Project(**doc)
 

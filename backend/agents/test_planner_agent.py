@@ -68,7 +68,7 @@ Respond ONLY with valid JSON in this format:
   "coverage_notes": "Additional notes about test coverage or missing information"
 }
 
-Be thorough but practical. Generate 5-15 test cases depending on feature complexity."""
+Be thorough but practical. Generate 5-10 test cases depending on feature complexity."""
 
     def parse_response(self, response_text: str) -> Any:
         """Parse the JSON response from Gemini."""
@@ -94,7 +94,7 @@ Be thorough but practical. Generate 5-15 test cases depending on feature complex
 Generate test cases that thoroughly cover this feature."""
 
         try:
-            response = self.call_gemini(
+            response = self.call_llm(
                 user_prompt=prompt,
                 max_tokens=4096
             )
@@ -103,30 +103,38 @@ Generate test cases that thoroughly cover this feature."""
             print(f"[TestPlannerAgent] Error generating tests: {e}")
             return None
     
-    def generate_from_feature_context(self, feature_context: dict) -> Optional[dict]:
+    def generate_from_feature_context(self, ctx: dict) -> Optional[dict]:
         """
-        Generate test cases directly from a FeatureContext dict.
-        
-        Args:
-            feature_context: The full feature context dict from ContextBuilder.
-        
-        Returns:
-            Dict containing test_cases list or None if generation failed.
+        Generate test cases from a context dict.
+
+        Supports two shapes:
+
+        1. Local flow (ContextBuilder): dict has ``items`` list with extracted AI data
+           per image/document/video/text.
+
+        2. Cloud flow: dict has ``context_summary`` (feature-level AI summary) and
+           optionally ``project_context`` (project-level summary). ``items`` is empty
+           or absent.
         """
-        # Build a comprehensive summary from the context
-        summary_parts = []
-        
-        # Feature info
-        summary_parts.append(f"Feature: {feature_context.get('name', 'Unknown')}")
-        if feature_context.get('description'):
-            summary_parts.append(f"Description: {feature_context['description']}")
-        
-        # Process items
-        for item in feature_context.get('items', []):
+        summary_parts: List[str] = []
+
+        summary_parts.append(f"Feature: {ctx.get('name', 'Unknown')}")
+        if ctx.get('description'):
+            summary_parts.append(f"Description: {ctx['description']}")
+
+        # ── Cloud path: pre-computed summaries ──────────────────────────────
+        if ctx.get('project_context'):
+            summary_parts.append(f"\n--- Project Context ---\n{ctx['project_context']}")
+
+        if ctx.get('context_summary'):
+            summary_parts.append(f"\n--- Feature Context ---\n{ctx['context_summary']}")
+
+        # ── Local path: raw extracted items ─────────────────────────────────
+        for item in ctx.get('items', []):
             item_type = item.get('type', '')
             source = item.get('source_name', '')
             extracted = item.get('extracted', {})
-            
+
             if item_type == 'image':
                 summary_parts.append(f"\n--- UI Screen: {source} ---")
                 if extracted.get('screen_type'):
@@ -136,13 +144,13 @@ Generate test cases that thoroughly cover this feature."""
                 if extracted.get('elements'):
                     elements_str = ", ".join([
                         f"{e.get('type', 'element')}:{e.get('label', 'unlabeled')}"
-                        for e in extracted['elements'][:20]  # Limit to 20 elements
+                        for e in extracted['elements'][:20]
                     ])
                     summary_parts.append(f"UI Elements: {elements_str}")
                 if extracted.get('text_content'):
                     text_str = ", ".join(extracted['text_content'][:10])
                     summary_parts.append(f"Text Content: {text_str}")
-            
+
             elif item_type == 'document':
                 summary_parts.append(f"\n--- Requirements: {source} ---")
                 if extracted.get('feature_name'):
@@ -155,7 +163,7 @@ Generate test cases that thoroughly cover this feature."""
                 if extracted.get('user_flows'):
                     for flow in extracted['user_flows'][:3]:
                         summary_parts.append(f"Flow '{flow.get('name', '')}': {' -> '.join(flow.get('steps', []))}")
-            
+
             elif item_type == 'video':
                 summary_parts.append(f"\n--- User Flow Recording: {source} ---")
                 if extracted.get('summary'):
@@ -163,11 +171,10 @@ Generate test cases that thoroughly cover this feature."""
                 if extracted.get('steps'):
                     for step in extracted['steps'][:10]:
                         summary_parts.append(f"- {step.get('action', 'action')}: {step.get('description', '')}")
-            
+
             elif item_type == 'text':
-                summary_parts.append(f"\n--- User Notes ---")
+                summary_parts.append("\n--- User Notes ---")
                 if extracted.get('text'):
                     summary_parts.append(extracted['text'])
-        
-        context_summary = "\n".join(summary_parts)
-        return self.generate_tests(context_summary)
+
+        return self.generate_tests("\n".join(summary_parts))

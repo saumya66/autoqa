@@ -6,11 +6,13 @@ from datetime import datetime
 class ProjectCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
+    context_summary: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    context_summary: Optional[str] = None
 
 
 class Project(BaseModel):
@@ -18,5 +20,6 @@ class Project(BaseModel):
     user_id: str
     name: str
     description: Optional[str] = None
+    context_summary: Optional[str] = None
     created_at: datetime
     updated_at: datetime

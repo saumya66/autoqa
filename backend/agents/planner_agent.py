@@ -149,7 +149,7 @@ For wait, use value as seconds: "2" (optional, defaults to 1 second)"""
         if context:
             user_prompt += f"\n\nCurrent UI context: {context}"
         
-        response_text = self.call_gemini(
+        response_text = self.call_llm(
             user_prompt=user_prompt,
             max_tokens=1024
         )
@@ -188,7 +188,7 @@ For wait, use value as seconds: "2" (optional, defaults to 1 second)"""
 
 Based on what you see in the UI, create a plan to accomplish this task."""
         
-        response_text = self.call_gemini(
+        response_text = self.call_llm(
             user_prompt=user_prompt,
             image_bytes=screenshot_bytes,
             max_tokens=1024

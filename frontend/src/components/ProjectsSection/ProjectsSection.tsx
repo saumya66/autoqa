@@ -6,6 +6,12 @@ import {
   List,
   Plus,
   ArrowDownUp,
+  Image,
+  MessageSquare,
+  Trash2,
+  Loader,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,7 +33,7 @@ import { ProjectCard } from './ProjectCard';
 import { cn } from '@/lib/utils';
 import {
   useProjects,
-  useCreateProject,
+  useCreateProjectWithContext,
   useUpdateProject,
   useDeleteProject,
 } from '@/hooks/useProjectsQueries';
@@ -44,7 +50,7 @@ export function ProjectsSection() {
   const [editProject, setEditProject] = React.useState<Project | null>(null);
 
   const { projects, loading, error, refetch, isAuthenticated } = useProjects();
-  const createProject = useCreateProject();
+  const createProject = useCreateProjectWithContext();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
 
@@ -189,8 +195,7 @@ export function ProjectsSection() {
               onEdit={(p) => setEditProject(p)}
               onDuplicate={(p) => {
                 createProject.mutate({
-                  name: `${p.name} (copy)`,
-                  description: p.description ?? undefined,
+                  input: { name: `${p.name} (copy)`, description: p.description ?? undefined, images: [], texts: [] },
                 });
               }}
               onDelete={(p) => {
@@ -213,12 +218,14 @@ export function ProjectsSection() {
       <CreateProjectDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onSubmit={(name, description) => {
-          createProject.mutate({ name, description }, {
-            onSuccess: () => setCreateOpen(false),
-          });
+        onSubmit={(name, description, images, texts) => {
+          createProject.mutate(
+            { input: { name, description, images, texts } },
+            { onSuccess: () => setCreateOpen(false) }
+          );
         }}
         isLoading={createProject.isPending}
+        isPending={createProject.isPending}
       />
 
       {/* Edit project dialog */}
@@ -242,64 +249,224 @@ export function ProjectsSection() {
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (name: string, description?: string) => void;
+  onSubmit: (name: string, description: string | undefined, images: File[], texts: string[]) => void;
   isLoading: boolean;
+  isPending: boolean;
 }
 
-function CreateProjectDialog({
-  open,
-  onOpenChange,
-  onSubmit,
-  isLoading,
-}: CreateProjectDialogProps) {
+interface StagedImage {
+  id: string;
+  file: File;
+}
+
+function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading }: CreateProjectDialogProps) {
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
+  const [stagedImages, setStagedImages] = React.useState<StagedImage[]>([]);
+  const [textNotes, setTextNotes] = React.useState<string[]>([]);
+  const [currentNote, setCurrentNote] = React.useState('');
+  const [sizeError, setSizeError] = React.useState<string | null>(null);
+
+  const reset = () => {
+    setName('');
+    setDescription('');
+    setStagedImages([]);
+    setTextNotes([]);
+    setCurrentNote('');
+    setSizeError(null);
+  };
+
+  const handleClose = (open: boolean) => {
+    if (!open) reset();
+    onOpenChange(open);
+  };
+
+  const handleImageSelect = (files: FileList | null) => {
+    if (!files) return;
+    const MAX = 10 * 1024 * 1024;
+    const valid: StagedImage[] = [];
+    let skipped = 0;
+    for (const f of Array.from(files)) {
+      if (f.size > MAX) { skipped++; continue; }
+      valid.push({ id: `${Date.now()}-${f.name}`, file: f });
+    }
+    if (skipped) setSizeError(`${skipped} file(s) skipped — max 10 MB each.`);
+    else setSizeError(null);
+    setStagedImages((prev) => [...prev, ...valid]);
+  };
+
+  const handleAddNote = () => {
+    if (!currentNote.trim()) return;
+    setTextNotes((prev) => [...prev, currentNote.trim()]);
+    setCurrentNote('');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit(name.trim(), description.trim() || undefined);
-    setName('');
-    setDescription('');
+    onSubmit(name.trim(), description.trim() || undefined, stagedImages.map((s) => s.file), textNotes);
   };
 
+  const hasContext = stagedImages.length > 0 || textNotes.length > 0;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Name */}
           <div>
-            <Label htmlFor="create-name">Name</Label>
+            <Label htmlFor="cp-name">Name *</Label>
             <Input
-              id="create-name"
+              id="cp-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Project name"
               className="mt-1"
+              disabled={isLoading}
             />
           </div>
+
+          {/* Description */}
           <div>
-            <Label htmlFor="create-desc">Description (optional)</Label>
+            <Label htmlFor="cp-desc">Description (optional)</Label>
             <Input
-              id="create-desc"
+              id="cp-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief description"
               className="mt-1"
+              disabled={isLoading}
             />
           </div>
+
+          {/* Context (optional) */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-1.5">
+              Context Assets
+              <span className="text-xs font-normal text-muted-foreground">(optional — used by AI to understand your project)</span>
+            </Label>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* Image upload */}
+              <label className={cn(
+                'group flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-4 text-center cursor-pointer transition-colors',
+                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary/50 hover:bg-muted/50'
+              )}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => handleImageSelect(e.target.files)}
+                  disabled={isLoading}
+                />
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <Image className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">Images</p>
+                  <p className="text-xs text-muted-foreground">Screenshots, mockups</p>
+                </div>
+              </label>
+
+              {/* Text note */}
+              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                    <MessageSquare className="w-3 h-3 text-amber-400" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">Text notes</p>
+                </div>
+                <textarea
+                  value={currentNote}
+                  onChange={(e) => setCurrentNote(e.target.value)}
+                  placeholder="Product description, key flows..."
+                  rows={2}
+                  disabled={isLoading}
+                  className="w-full px-2 py-1.5 bg-background border border-input rounded text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring resize-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={!currentNote.trim() || isLoading}
+                  className="flex items-center justify-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 disabled:opacity-50 text-xs text-foreground rounded transition-colors"
+                >
+                  <Plus className="w-3 h-3" /> Add
+                </button>
+              </div>
+            </div>
+
+            {/* Staged assets list */}
+            {hasContext && (
+              <div className="rounded-lg border border-border divide-y divide-border">
+                {stagedImages.map((img) => (
+                  <div key={img.id} className="flex items-center gap-3 px-3 py-2">
+                    <Image className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span className="flex-1 text-sm text-foreground truncate">{img.file.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {(img.file.size / 1024 / 1024).toFixed(1)} MB
+                    </span>
+                    {!isLoading && (
+                      <button
+                        type="button"
+                        onClick={() => setStagedImages((p) => p.filter((i) => i.id !== img.id))}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {textNotes.map((note, idx) => (
+                  <div key={idx} className="flex items-center gap-3 px-3 py-2">
+                    <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="flex-1 text-sm text-foreground truncate">{note}</span>
+                    {!isLoading && (
+                      <button
+                        type="button"
+                        onClick={() => setTextNotes((p) => p.filter((_, i) => i !== idx))}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sizeError && (
+              <p className="flex items-center gap-1.5 text-xs text-destructive">
+                <AlertCircle className="w-3.5 h-3.5" /> {sizeError}
+              </p>
+            )}
+
+            {hasContext && !isLoading && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                AI will analyse these assets and build a project context summary.
+              </p>
+            )}
+          </div>
+
+          {/* Loading state */}
+          {isLoading && (
+            <div className="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/20 px-3 py-2 text-sm text-primary">
+              <Loader className="w-4 h-4 animate-spin shrink-0" />
+              {hasContext ? 'Processing assets and creating project...' : 'Creating project...'}
+            </div>
+          )}
+
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={isLoading}>
               Cancel
             </Button>
             <Button type="submit" disabled={!name.trim() || isLoading}>
-              {isLoading ? 'Creating...' : 'Create'}
+              {isLoading ? 'Creating...' : 'Create project'}
             </Button>
           </DialogFooter>
         </form>

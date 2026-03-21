@@ -1,14 +1,16 @@
 from pydantic import BaseModel
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from datetime import datetime
+
+ContextLevel = Literal["project", "feature"]
 
 
 class ContextItemCreate(BaseModel):
-    feature_id: str
+    level: ContextLevel
+    level_id: str
     type: str
     filename: Optional[str] = None
     content: Optional[str] = None
-    storage_path: Optional[str] = None
     file_size: Optional[int] = None
 
 
@@ -20,11 +22,11 @@ class ContextItemUpdate(BaseModel):
 
 class ContextItem(BaseModel):
     id: str
-    feature_id: str
+    level: ContextLevel
+    level_id: str
     type: str
     filename: Optional[str] = None
     content: Optional[str] = None
-    storage_path: Optional[str] = None
     file_size: Optional[int] = None
     ai_summary: Optional[str] = None
     processing_status: str = "pending"

@@ -148,6 +148,14 @@ a[href],
   background: color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
+/* Dialog open/close animation */
+.dialog-content-outer[data-state=open] {
+  animation: dialog-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.dialog-content-outer[data-state=closed] {
+  animation: dialog-exit 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Smooth transitions */
 * {
   transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
@@ -213,6 +221,42 @@ a[href],
   --color-sidebar-ring: var(--sidebar-ring);
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-dialog-enter: dialog-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-dialog-exit: dialog-exit 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-overlay-enter: overlay-enter 0.3s ease-out;
+  --animate-overlay-exit: overlay-exit 0.2s ease-out;
+
+  @keyframes overlay-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes overlay-exit {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  @keyframes dialog-enter {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes dialog-exit {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
 
   @keyframes accordion-down {
     from {

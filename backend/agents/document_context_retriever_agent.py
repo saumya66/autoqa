@@ -197,7 +197,7 @@ Extract as much structured information as possible. If something is not mentione
             prompt += f"\n\nAdditional context: {additional_context}"
         
         try:
-            response = self.call_gemini(
+            response = self.call_llm(
                 user_prompt=prompt,
                 max_tokens=4096
             )

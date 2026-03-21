@@ -24,6 +24,10 @@ import asyncio
 import json
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Load env vars BEFORE importing cloud_client so CLOUD_API_URL is available at module level
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -34,7 +38,7 @@ import pyautogui
 from actions import ActionType, execute_action, human_click, human_scroll
 from context_builder import get_context_builder
 from models.context import ContextType
-from agents import VisionAgent, PlannerAgent, WindowResolverAgent, OrchestratorAgent
+from agents import VisionAgent, PlannerAgent, WindowResolverAgent, OrchestratorAgent, ImageContextRetrieverAgent, TestPlannerAgent
 from agents.computer_use_agent import ComputerUseAgent
 from agents.claude_computer_use_agent import ClaudeComputerUseAgent
 from agents.orchestrator_agent import ActionType as OrchestratorActionType
@@ -65,15 +69,14 @@ from cloud_client import (
     get_project as cloud_get_project,
     update_project as cloud_update_project,
     delete_project as cloud_delete_project,
+    list_context_items as cloud_list_context_items,
+    save_context_items_batch as cloud_save_context_items_batch,
+    save_test_cases_bulk as cloud_save_test_cases_bulk,
     list_test_cases_by_feature as cloud_list_test_cases,
     create_test_run as cloud_create_test_run,
     update_test_run as cloud_update_test_run,
     create_test_result as cloud_create_test_result,
 )
-
-
-# Load environment variables from backend/.env
-load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 @asynccontextmanager
@@ -3000,6 +3003,435 @@ async def provide_guidance(context_id: str, test_id: str, request: ProvideGuidan
         "message": "Guidance received. Agent will use this in the next step.",
         "guidance": request.guidance
     }
+
+
+# =============================================================================
+# Cloud-backed Project + Feature Context Endpoints (SSE)
+# =============================================================================
+
+class CreateProjectRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    images: list = []   # [{"filename": str, "content_b64": str, "file_size": int}]
+    texts: list = []    # [str]
+    token: str
+
+
+@app.post("/cloud/project/create")
+async def cloud_create_project_with_context(request: CreateProjectRequest):
+    """
+    SSE endpoint: save images/text to cloud, run AI agents, create project with context_summary.
+
+    Streams progress events:
+      {"event": "progress", "message": "..."}
+      {"event": "done", "project": {...}}
+      {"event": "error", "message": "..."}
+    """
+    async def generate():
+        try:
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Processing images...'})}\n\n"
+
+            image_agent = ImageContextRetrieverAgent(provider="claude")
+            image_contexts = []
+            for img in request.images:
+                import base64
+                raw = base64.b64decode(img["content_b64"])
+                result = image_agent.process(raw, "")
+                if result:
+                    image_contexts.append(result)
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Synthesising context...'})}\n\n"
+
+            # Build combined context text for synthesis
+            context_parts = []
+            for ctx in image_contexts:
+                if ctx.get("description"):
+                    context_parts.append(f"Screen: {ctx.get('screen_title', 'Unknown')} — {ctx['description']}")
+                for elem in ctx.get("elements", [])[:10]:
+                    context_parts.append(f"  UI element: {elem.get('label', '')} ({elem.get('type', '')})")
+            for text in request.texts:
+                context_parts.append(f"User note: {text}")
+
+            # Use TestPlannerAgent's underlying LLM to synthesise a project-level summary
+            from agents.base_agent import BaseAgent
+            class _SynthAgent(BaseAgent):
+                @property
+                def system_prompt(self):
+                    return (
+                        "You are a product analyst. Given observations about an app (screens, UI elements, user notes), "
+                        "write a project context summary that describes what the product does, "
+                        "key screens, and main user flows. "
+                        "Respond with JSON: {\"summary\": \"your text here\"}"
+                    )
+                def parse_response(self, response_text: str):
+                    return self.extract_json(response_text)
+                def synthesise(self, raw_context: str) -> str:
+                    result = self.parse_response(self.call_gemini(raw_context, max_tokens=512))
+                    return (result or {}).get("summary", "") if result else ""
+
+            synth = _SynthAgent(provider="claude")
+            context_summary = synth.synthesise("\n".join(context_parts)) if context_parts else ""
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Saving project...'})}\n\n"
+
+            project = cloud_create_project(
+                name=request.name,
+                description=request.description,
+                context_summary=context_summary,
+                token=request.token,
+            )
+            if not project:
+                yield f"data: {json.dumps({'event': 'error', 'message': 'Failed to create project in cloud'})}\n\n"
+                return
+
+            # Save context items to cloud (fire-and-forget, non-blocking)
+            if request.images or request.texts:
+                cloud_save_context_items_batch(
+                    level="project",
+                    level_id=project["id"],
+                    images=request.images,
+                    texts=request.texts,
+                    token=request.token,
+                )
+
+            yield f"data: {json.dumps({'event': 'done', 'project': project})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+class UpdateProjectContextRequest(BaseModel):
+    token: str
+    images: list = []  # [{"filename": str, "content_b64": str, "file_size": int}]
+    texts: list = []   # [str]
+
+
+@app.post("/cloud/project/{project_id}/update-context")
+async def cloud_update_project_context(project_id: str, request: UpdateProjectContextRequest):
+    """
+    SSE endpoint: replace context items for an existing project, re-run AI agents,
+    update project.context_summary in cloud.
+
+    Streams:
+      {"event": "progress", "message": "..."}
+      {"event": "done", "context_summary": "..."}
+      {"event": "error", "message": "..."}
+    """
+    async def generate():
+        try:
+            # Save new assets (replaces any existing ones)
+            if request.images or request.texts:
+                yield f"data: {json.dumps({'event': 'progress', 'message': 'Saving context assets...'})}\n\n"
+                await asyncio.sleep(0)
+                await asyncio.to_thread(
+                    cloud_save_context_items_batch,
+                    level="project",
+                    level_id=project_id,
+                    images=request.images,
+                    texts=request.texts,
+                    token=request.token,
+                )
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Processing images...'})}\n\n"
+            await asyncio.sleep(0)
+
+            import base64
+            image_agent = ImageContextRetrieverAgent(provider="claude")
+            image_contexts = []
+            for img in request.images:
+                raw = base64.b64decode(img["content_b64"])
+                result = await asyncio.to_thread(image_agent.process, raw, "")
+                if result:
+                    image_contexts.append(result)
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Synthesising context...'})}\n\n"
+            await asyncio.sleep(0)
+
+            context_parts = []
+            for ctx in image_contexts:
+                if ctx.get("description"):
+                    context_parts.append(f"Screen: {ctx.get('screen_title', 'Unknown')} — {ctx['description']}")
+                for elem in ctx.get("elements", [])[:10]:
+                    context_parts.append(f"  UI element: {elem.get('label', '')} ({elem.get('type', '')})")
+            for text in request.texts:
+                context_parts.append(f"User note: {text}")
+
+            from agents.base_agent import BaseAgent
+            class _SynthAgent(BaseAgent):
+                @property
+                def system_prompt(self):
+                    return (
+                        "You are a product analyst. Given observations about an app (screens, UI elements, user notes), "
+                        "write a project context summary that describes what the product does, "
+                        "key screens, and main user flows. "
+                        "Respond with JSON: {\"summary\": \"your text here\"}"
+                    )
+                def parse_response(self, response_text: str):
+                    return self.extract_json(response_text)
+                def synthesise(self, raw_context: str) -> str:
+                    result = self.parse_response(self.call_llm(raw_context, max_tokens=512))
+                    return (result or {}).get("summary", "") if result else ""
+
+            synth = _SynthAgent(provider="claude")
+            context_summary = await asyncio.to_thread(synth.synthesise, "\n".join(context_parts)) if context_parts else ""
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Saving updated context...'})}\n\n"
+            await asyncio.sleep(0)
+
+            from cloud_client import _request as cloud_request
+            update_code, update_body = await asyncio.to_thread(
+                cloud_request,
+                "PATCH",
+                f"/api/v1/projects/{project_id}",
+                json={"context_summary": context_summary},
+                token=request.token,
+            )
+            print(f"[update-context] PATCH /api/v1/projects/{project_id} → {update_code}: {update_body}")
+            if update_code != 200:
+                yield f"data: {json.dumps({'event': 'error', 'message': f'Cloud update failed ({update_code}): {update_body}'})}\n\n"
+                return
+
+            yield f"data: {json.dumps({'event': 'done', 'context_summary': context_summary})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+class BuildFeatureContextRequest(BaseModel):
+    project_id: str
+    feature_id: str
+    token: str
+    user_feedback: Optional[str] = None
+    images: list = []  # [{"filename": str, "content_b64": str, "file_size": int}]
+    texts: list = []   # [str]
+
+
+@app.post("/cloud/feature/{feature_id}/build-context")
+async def cloud_build_feature_context(feature_id: str, request: BuildFeatureContextRequest):
+    """
+    SSE endpoint: fetch feature + project context items from cloud, run agents,
+    build context_summary, persist to cloud feature record.
+
+    Streams:
+      {"event": "progress", "message": "..."}
+      {"event": "done", "summary": {...}, "context_summary": "..."}
+      {"event": "error", "message": "..."}
+    """
+    async def generate():
+        try:
+            # If new assets provided, save them first (replaces existing)
+            if request.images or request.texts:
+                yield f"data: {json.dumps({'event': 'progress', 'message': 'Saving context assets...'})}\n\n"
+                await asyncio.sleep(0)
+                await asyncio.to_thread(
+                    cloud_save_context_items_batch,
+                    level="feature",
+                    level_id=feature_id,
+                    images=request.images,
+                    texts=request.texts,
+                    token=request.token,
+                )
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Fetching feature context...'})}\n\n"
+            await asyncio.sleep(0)
+            feature_items = await asyncio.to_thread(cloud_list_context_items, "feature", feature_id, token=request.token)
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Fetching project context...'})}\n\n"
+            await asyncio.sleep(0)
+            project_items = await asyncio.to_thread(cloud_list_context_items, "project", request.project_id, token=request.token)
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Analysing images...'})}\n\n"
+            await asyncio.sleep(0)
+
+            import base64
+            image_agent = ImageContextRetrieverAgent(provider="claude")
+            image_contexts = []
+            feedback_prefix = f"User correction: {request.user_feedback}\n\n" if request.user_feedback else ""
+
+            all_items = feature_items + project_items
+            for item in all_items:
+                if item.get("type") == "image" and item.get("content"):
+                    raw = base64.b64decode(item["content"])
+                    result = await asyncio.to_thread(image_agent.process, raw, feedback_prefix)
+                    if result:
+                        result["_source"] = item.get("filename", "image")
+                        image_contexts.append(result)
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Synthesising context...'})}\n\n"
+            await asyncio.sleep(0)
+
+            # Build structured summary
+            screens = []
+            ui_elements = []
+            text_notes = []
+
+            for ctx in image_contexts:
+                screen_name = ctx.get("screen_title") or ctx.get("screen_type", "Unknown screen")
+                screens.append({"name": screen_name, "source": ctx.get("_source", ""), "description": ctx.get("description", "")})
+                for elem in ctx.get("elements", [])[:10]:
+                    ui_elements.append({"type": elem.get("type", ""), "label": elem.get("label", ""), "location": elem.get("location", "")})
+
+            for item in all_items:
+                if item.get("type") == "text" and item.get("content"):
+                    text_notes.append(item["content"])
+
+            summary = {
+                "screens_detected": screens,
+                "ui_elements": ui_elements,
+                "requirements": [],
+                "user_flows": [],
+                "text_notes": text_notes,
+            }
+
+            # Synthesise a natural-language context_summary
+            context_parts = []
+            for s in screens:
+                context_parts.append(f"Screen '{s['name']}': {s['description']}")
+            for note in text_notes:
+                context_parts.append(f"Note: {note}")
+            if request.user_feedback:
+                context_parts.append(f"User feedback: {request.user_feedback}")
+
+            from agents.base_agent import BaseAgent
+            class _SynthAgent(BaseAgent):
+                @property
+                def system_prompt(self):
+                    return (
+                        "You are a QA analyst. Given observations about a specific feature or user flow "
+                        "(screens, UI elements, user notes), write a concise feature context summary "
+                        "(3-6 sentences) describing what the feature does and key interactions. "
+                        "Respond with JSON: {\"summary\": \"your text here\"}"
+                    )
+                def parse_response(self, response_text: str):
+                    return self.extract_json(response_text)
+                def synthesise(self, raw_context: str) -> str:
+                    result = self.parse_response(self.call_llm(raw_context, max_tokens=512))
+                    return (result or {}).get("summary", "") if result else ""
+
+            synth = _SynthAgent(provider="claude")
+            context_summary = await asyncio.to_thread(synth.synthesise, "\n".join(context_parts)) if context_parts else ""
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Saving context...'})}\n\n"
+            await asyncio.sleep(0)
+
+            from cloud_client import update_feature as cloud_update_feature
+            await asyncio.to_thread(
+                cloud_update_feature, feature_id,
+                token=request.token, context_summary=context_summary, status="context_ready"
+            )
+
+            yield f"data: {json.dumps({'event': 'done', 'summary': summary, 'context_summary': context_summary})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+class SaveFeatureTestsRequest(BaseModel):
+    feature_id: str
+    token: str
+    test_cases: list  # [{id, name/title, description, steps, expected_result, category, priority}]
+
+
+@app.post("/cloud/feature/{feature_id}/save-tests")
+async def cloud_save_feature_tests(feature_id: str, request: SaveFeatureTestsRequest):
+    """
+    Save approved test cases to the cloud backend.
+    Deletes any existing test cases for this feature first, then bulk-inserts.
+    """
+    cloud_tests = []
+    for tc in request.test_cases:
+        cloud_tests.append({
+            "feature_id": feature_id,
+            "test_key": tc.get("id", f"TC-{len(cloud_tests)+1:03d}"),
+            "title": tc.get("name") or tc.get("title", "Untitled"),
+            "description": tc.get("description"),
+            "steps_text": "\n".join(tc.get("steps", [])) if isinstance(tc.get("steps"), list) else tc.get("steps_text"),
+            "goal": tc.get("description") or tc.get("name") or "Test execution",
+            "expected_result": tc.get("expected_result"),
+            "priority": tc.get("priority"),
+            "category": tc.get("category"),
+        })
+
+    saved = cloud_save_test_cases_bulk(feature_id, cloud_tests, token=request.token)
+    return {"ok": True, "saved": len(saved)}
+
+
+class GenerateFeatureTestsRequest(BaseModel):
+    project_id: str
+    feature_id: str
+    token: str
+    provider: str = "claude"
+
+
+@app.post("/cloud/feature/{feature_id}/generate-tests")
+async def cloud_generate_feature_tests(feature_id: str, request: GenerateFeatureTestsRequest):
+    """
+    SSE endpoint: fetch project + feature context_summary from cloud, generate test cases.
+
+    Streams:
+      {"event": "progress", "message": "..."}
+      {"event": "done", "test_cases": [...], "feature_summary": "..."}
+      {"event": "error", "message": "..."}
+    """
+    async def generate():
+        try:
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Fetching context summaries...'})}\n\n"
+            await asyncio.sleep(0)
+
+            project = await asyncio.to_thread(cloud_get_project, request.project_id, token=request.token)
+            project_context = (project or {}).get("context_summary", "") or ""
+
+            from cloud_client import get_feature as cloud_get_feature
+            feature = await asyncio.to_thread(cloud_get_feature, feature_id, token=request.token)
+            feature_context = (feature or {}).get("context_summary", "") or ""
+
+            if not feature_context:
+                yield f"data: {json.dumps({'event': 'error', 'message': 'Feature context not built yet. Build context first.'})}\n\n"
+                return
+
+            yield f"data: {json.dumps({'event': 'progress', 'message': 'Generating test cases...'})}\n\n"
+            await asyncio.sleep(0)
+
+            from agents.test_planner_agent import TestPlannerAgent
+            planner = TestPlannerAgent(provider=request.provider)
+
+            combined_context = {
+                "name": (feature or {}).get("name", ""),
+                "description": (feature or {}).get("description", ""),
+                "context_summary": feature_context,
+                "project_context": project_context,
+                "items": [],
+            }
+            test_plan = await asyncio.to_thread(planner.generate_from_feature_context, combined_context)
+
+            if not test_plan:
+                yield f"data: {json.dumps({'event': 'error', 'message': 'Test generation failed'})}\n\n"
+                return
+
+            yield f"data: {json.dumps({'event': 'done', 'feature_summary': test_plan.get('feature_summary', ''), 'test_cases': test_plan.get('test_cases', []), 'coverage_notes': test_plan.get('coverage_notes', '')})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # =============================================================================

@@ -114,7 +114,7 @@ Available windows:
 
 Which window should be used for this instruction?"""
         
-        response_text = self.call_gemini(
+        response_text = self.call_llm(
             user_prompt=user_prompt,
             max_tokens=256
         )

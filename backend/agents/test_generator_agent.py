@@ -212,7 +212,7 @@ Use these element descriptions for accurate targeting."""
 4. Use exact visual descriptions for targets"""
 
         try:
-            response = self.call_gemini(
+            response = self.call_llm(
                 user_prompt=prompt,
                 max_tokens=3000
             )

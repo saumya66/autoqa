@@ -119,7 +119,7 @@ Be thorough but precise. Only include elements you can clearly see in the image.
             prompt += f"\n\nAdditional context: {additional_context}"
         
         try:
-            response = self.call_gemini(
+            response = self.call_llm(
                 user_prompt=prompt,
                 image_bytes=image_bytes,
                 max_tokens=2048

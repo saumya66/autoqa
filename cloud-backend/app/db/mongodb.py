@@ -50,7 +50,7 @@ def init_indexes():
     db.users.create_index("email", unique=True)
     db.projects.create_index("user_id")
     db.features.create_index("project_id")
-    db.context_items.create_index("feature_id")
+    db.context_items.create_index([("level", 1), ("level_id", 1)])
     db.test_cases.create_index("feature_id")
     db.test_runs.create_index([("feature_id", 1), ("created_at", -1)])
     db.test_runs.create_index("user_id")

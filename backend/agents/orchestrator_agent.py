@@ -294,7 +294,7 @@ EXAMPLE - Goal: "Find Logout button"
 {previous_context}
 Look at the current screenshot and decide the NEXT SINGLE ACTION to take."""
 
-        response_text = self.call_gemini(
+        response_text = self.call_llm(
             user_prompt=user_prompt,
             image_bytes=screenshot_bytes,
             max_tokens=512

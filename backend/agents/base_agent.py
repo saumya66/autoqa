@@ -69,7 +69,7 @@ class BaseAgent(ABC):
         """Parse the raw response text into structured data."""
         pass
 
-    def call_gemini(
+    def call_llm(
         self,
         user_prompt: str,
         image_bytes: Optional[bytes] = None,
@@ -77,9 +77,7 @@ class BaseAgent(ABC):
     ) -> str:
         """
         Call the configured AI provider with text and optional image.
-
-        Routes to Gemini or Claude based on ``self.provider``.
-        The method name is kept for backward compatibility with child agents.
+        Routes to Claude or Gemini based on ``self.provider``.
 
         Returns:
             Raw text response.
