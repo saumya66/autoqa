@@ -1,0 +1,439 @@
+---
+import LegalLayout from '../layouts/LegalLayout.astro';
+
+const sections = [
+  { id: 'scope', label: 'Scope and who we are' },
+  { id: 'information', label: 'Information we collect' },
+  { id: 'desktop', label: 'Desktop access and local data' },
+  { id: 'use', label: 'How we use information' },
+  { id: 'legal-bases', label: 'Legal bases' },
+  { id: 'ai', label: 'AI processing' },
+  { id: 'disclosures', label: 'How we disclose information' },
+  { id: 'analytics', label: 'Analytics and cookies' },
+  { id: 'transfers', label: 'International transfers' },
+  { id: 'retention', label: 'Retention and deletion' },
+  { id: 'security', label: 'Security' },
+  { id: 'rights', label: 'Your privacy rights' },
+  { id: 'organizations', label: 'Organization accounts' },
+  { id: 'sensitive-data', label: 'Sensitive data' },
+  { id: 'age', label: 'Age restrictions' },
+  { id: 'third-parties', label: 'Third-party services' },
+  { id: 'regions', label: 'Regional availability' },
+  { id: 'changes', label: 'Changes to this policy' },
+  { id: 'contact', label: 'Contact us' },
+];
+---
+
+<LegalLayout
+  title="Privacy Policy"
+  eyebrow="Legal · Privacy"
+  description="This policy explains how Clariti collects, uses, discloses, stores, and protects information across our websites, desktop applications, APIs, and related services."
+  {sections}
+>
+  <div class="notice">
+    <strong>In short:</strong> Clariti processes information to provide an AI-powered quality-assurance service. Some content may be sent to AI and infrastructure providers. We do not sell personal information or share it for cross-context behavioural advertising.
+  </div>
+
+  <section id="scope">
+    <h2>1. Scope and who we are</h2>
+    <p>
+      This Privacy Policy applies to Clariti’s website at
+      <a href="https://claritihq.com">claritihq.com</a>, desktop applications, APIs,
+      beta or preview programs, support channels, and related products and services
+      (collectively, the <strong>“Services”</strong>). “Clariti,” “we,” “us,” and “our”
+      refer to Clariti, the operator of the Services, based in Bengaluru, Karnataka,
+      India.
+    </p>
+    <p>
+      This policy does not apply to third-party products, websites, or services that
+      have their own privacy notices. If or when Clariti offers organization-managed
+      accounts, an organization that provides your access may separately control
+      information associated with your account and use of the Services.
+    </p>
+  </section>
+
+  <section id="information">
+    <h2>2. Information we collect</h2>
+    <h3>Information you provide</h3>
+    <ul>
+      <li>
+        <strong>Account and profile information:</strong> such as name, email address,
+        password or authentication information and account preferences, as well as
+        organization and role information if organization accounts are introduced.
+      </li>
+      <li>
+        <strong>Customer Content:</strong> project and feature descriptions, text
+        instructions, screenshots, images, documents, videos, application context,
+        test cases, expected results, prompts, guidance, and other materials you submit.
+      </li>
+      <li>
+        <strong>Execution information:</strong> selected application or window names,
+        screenshots captured during a run, AI reasoning and actions, mouse and keyboard
+        operations, coordinates, test steps, logs, outcomes, conclusions, and run history.
+      </li>
+      <li>
+        <strong>Communications:</strong> support requests, survey responses, feedback,
+        meeting details, and correspondence with us.
+      </li>
+      <li>
+        <strong>Transaction information:</strong> if paid features are offered, plan,
+        billing contact, subscription, invoice, tax, and payment-status information.
+        Complete payment-card details may be collected directly by a payment processor
+        rather than Clariti.
+      </li>
+    </ul>
+
+    <h3>Information collected automatically</h3>
+    <p>
+      Depending on the Service and your settings, we may collect IP address, browser
+      type, operating system, device identifiers, application version, referring pages,
+      pages viewed, feature interactions, timestamps, crash information, performance
+      data, diagnostic logs, approximate location derived from IP address, cookie or
+      similar-technology identifiers, and security events.
+    </p>
+
+    <h3>Information from other sources</h3>
+    <p>
+      If or when Clariti offers organization accounts, single sign-on, or integrations,
+      we may receive information from your organization’s administrator, identity
+      provider, a service you connect, or another user who invites you. We may also
+      receive information from service providers, publicly available sources, and
+      referral partners and combine it with information collected through the Services.
+    </p>
+  </section>
+
+  <section id="desktop">
+    <h2>3. Desktop access and local data</h2>
+    <p>
+      Clariti’s desktop software may request macOS Screen Recording and Accessibility
+      permissions. These permissions can allow Clariti to view selected application
+      windows and simulate mouse or keyboard input so it can execute tests. Depending
+      on the window selected, captured material may contain personal, confidential, or
+      sensitive information visible on screen.
+    </p>
+    <p>
+      Parts of Clariti run locally on your device. The local component may capture and
+      resize screenshots, inspect available window names and bounds, execute actions,
+      and communicate with Clariti’s cloud services and your selected AI provider.
+      Test metadata, steps, results, and content needed to provide the Services may be
+      stored in Clariti’s cloud systems.
+    </p>
+    <p>
+      In the packaged desktop application, an AI-provider API key may be encrypted using
+      operating-system security facilities and stored locally on your device. The key
+      may pass through Clariti’s local component and be transmitted to the applicable AI
+      provider when necessary to fulfil your request. Clariti does not intend to store
+      that key in its cloud database. Development configurations may instead use keys
+      supplied through local environment settings.
+    </p>
+    <p>
+      You control operating-system permissions and can revoke them through your device
+      settings. Revoking permissions may prevent core testing functionality from working.
+    </p>
+  </section>
+
+  <section id="use">
+    <h2>4. How we use information</h2>
+    <p>We may use information to:</p>
+    <ul>
+      <li>create and administer accounts, projects, subscriptions, and, if offered, workspaces;</li>
+      <li>generate context, test plans, test cases, reports, and other requested output;</li>
+      <li>run, pause, guide, replay, and record automated test executions;</li>
+      <li>authenticate users and, if offered, provide integrations and connected features;</li>
+      <li>maintain, troubleshoot, secure, and improve the Services;</li>
+      <li>understand performance, reliability, adoption, and feature usage;</li>
+      <li>provide support and communicate about service, security, and policy updates;</li>
+      <li>process transactions and manage paid plans if introduced;</li>
+      <li>detect fraud, abuse, unauthorized access, and violations of our Terms;</li>
+      <li>comply with law and protect rights, safety, property, and the Services; and</li>
+      <li>create aggregated or de-identified information that cannot reasonably identify you.</li>
+    </ul>
+    <p>
+      We may use aggregated or de-identified information for lawful purposes and will
+      not attempt to re-identify it except to test our de-identification processes or
+      as permitted by law.
+    </p>
+  </section>
+
+  <section id="legal-bases">
+    <h2>5. Legal bases for processing</h2>
+    <p>
+      Where applicable law requires a legal basis, we process personal information as
+      necessary to perform a contract with you or your organization; pursue legitimate
+      interests such as operating, securing, supporting, and improving the Services;
+      comply with legal obligations; protect vital interests; or act with your consent.
+    </p>
+    <p>
+      Our legitimate interests do not override your rights where applicable law provides
+      otherwise. When processing relies on consent, you may withdraw consent at any time,
+      without affecting processing that occurred before withdrawal. Some information is
+      required to provide the Services; if it is not supplied, the relevant functionality
+      may be unavailable.
+    </p>
+  </section>
+
+  <section id="ai">
+    <h2>6. AI processing</h2>
+    <p>
+      Clariti uses third-party artificial-intelligence providers to analyse Customer
+      Content, understand application interfaces, create tests, and direct automated
+      execution. Prompts, screenshots, documents, videos or sampled frames, instructions,
+      feedback, and related context may be transmitted to those providers. Their
+      processing is governed by our arrangements with them and, where you supply your
+      own account or API key, may also be governed by their terms and privacy practices.
+    </p>
+    <p>
+      Clariti does not currently use Customer Content to train Clariti-owned foundation
+      models. We may use service telemetry, feedback, and appropriately aggregated or
+      de-identified information to evaluate and improve the Services. If we propose to
+      use identifiable Customer Content for model training in the future, we will update
+      our disclosures and obtain consent where required by law.
+    </p>
+    <p>
+      AI providers may process information in countries different from yours. Their
+      retention and use practices may vary by product, account type, configuration, and
+      applicable terms. You should not submit information to an AI-powered feature unless
+      you are authorized to have it processed in this manner.
+    </p>
+  </section>
+
+  <section id="disclosures">
+    <h2>7. How we disclose information</h2>
+    <p>We may disclose information to the following categories of recipients:</p>
+    <ul>
+      <li>
+        <strong>Service providers:</strong> AI, hosting, cloud infrastructure, database,
+        storage, security, monitoring, analytics, authentication, communications,
+        customer-support, payment, and professional-service providers.
+      </li>
+      <li>
+        <strong>Your organization and users:</strong> if organization accounts are
+        offered, workspace administrators and authorized members may access account,
+        activity, project, and content information.
+      </li>
+      <li>
+        <strong>Integrations:</strong> third parties you direct us to connect with or
+        disclose information to.
+      </li>
+      <li>
+        <strong>Professional advisers:</strong> lawyers, auditors, insurers, accountants,
+        financial institutions, and advisers subject to appropriate duties.
+      </li>
+      <li>
+        <strong>Authorities and protected parties:</strong> where we reasonably believe
+        disclosure is required by law, legal process, or to protect rights, safety,
+        property, users, the public, or the integrity of the Services.
+      </li>
+      <li>
+        <strong>Business transactions:</strong> in connection with financing, due
+        diligence, reorganization, merger, acquisition, sale, insolvency, or transfer of
+        all or part of our business or assets, subject to applicable law.
+      </li>
+    </ul>
+    <p>
+      We do not sell personal information for money, and we do not share personal
+      information for cross-context behavioural advertising. If that practice changes,
+      we will first update this policy and provide any consent or opt-out mechanism
+      required by law.
+    </p>
+  </section>
+
+  <section id="analytics">
+    <h2>8. Analytics, cookies, and similar technologies</h2>
+    <p>
+      Our website and applications may use essential local storage, cookies, or similar
+      technologies for authentication, security, preferences, and core functionality.
+      We may introduce analytics services, including Google Analytics, PostHog, or other
+      providers, to understand traffic and product usage. These tools may collect device,
+      interaction, and approximate-location information using cookies or comparable
+      identifiers.
+    </p>
+    <p>
+      A reference to a potential analytics provider does not mean that provider is active
+      on every Clariti property. Before deploying non-essential analytics, we will update
+      relevant disclosures and provide consent or preference controls where required.
+      Browser controls may block cookies, but doing so can affect functionality. Where
+      legally required and technically supported, we will honour applicable opt-out
+      preference signals.
+    </p>
+  </section>
+
+  <section id="transfers">
+    <h2>9. International data transfers</h2>
+    <p>
+      Clariti operates from India and may use providers or infrastructure in other
+      countries. As a result, information may be processed where privacy laws and
+      government-access rules differ from those in your jurisdiction.
+    </p>
+    <p>
+      Where required, we use recognized transfer mechanisms or other appropriate
+      safeguards, such as contractual protections, and assess supplementary measures
+      where appropriate. You may contact us for information about safeguards applicable
+      to your information, subject to confidentiality and legal restrictions.
+    </p>
+  </section>
+
+  <section id="retention">
+    <h2>10. Retention and deletion</h2>
+    <p>
+      We retain information for as long as reasonably necessary to provide the Services,
+      maintain business and security records, comply with law, resolve disputes, enforce
+      agreements, and protect the Services and users. Retention varies according to the
+      information’s nature, sensitivity, purpose, account status, contractual commitments,
+      legal requirements, and technical context.
+    </p>
+    <p>
+      Following a valid account-deletion request, we aim to delete or de-identify active
+      account data within 30 days and remove it from routine backups within 90 days.
+      Deletion may take longer where information must be retained for legal obligations,
+      fraud prevention, security, billing, dispute resolution, enforcement, legal claims,
+      a valid preservation request, or where deletion is technically infeasible. Data
+      may remain in aggregated or de-identified form.
+    </p>
+    <p>
+      If organization accounts are offered, workspace administrators may control
+      deletion of organization-managed content. Ending use of the Services does not
+      itself delete an account; contact us to request deletion if an in-product control
+      is unavailable.
+    </p>
+  </section>
+
+  <section id="security">
+    <h2>11. Security</h2>
+    <p>
+      We use administrative, technical, and organizational measures designed to protect
+      information, taking account of the nature of the information and the Services.
+      No method of storage or transmission is completely secure, and we cannot guarantee
+      that information will never be accessed, altered, lost, or disclosed.
+    </p>
+    <p>
+      You are responsible for securing your devices, credentials, API keys, connected
+      systems, test environments, and backups. Notify us promptly if you suspect
+      unauthorized use. We will provide legally required security-incident notifications
+      to affected parties or authorities.
+    </p>
+  </section>
+
+  <section id="rights">
+    <h2>12. Your privacy rights</h2>
+    <p>
+      Depending on where you live and subject to legal exceptions, you may have rights
+      to request access, correction, completion, deletion, restriction, portability, or
+      an explanation of processing; object to certain processing; withdraw consent;
+      opt out of certain disclosures or profiling; nominate another person where
+      applicable; appeal a decision; or complain to a data-protection authority.
+    </p>
+    <p>
+      Submit requests to <a href="mailto:claritihq@gmail.com">claritihq@gmail.com</a>.
+      We may verify your identity, authority, account, and jurisdiction before responding.
+      Authorized agents may be required to provide proof of authority, and we may ask
+      you to confirm a request directly. We will not discriminate against you for
+      exercising applicable rights.
+    </p>
+    <p>
+      Rights are not absolute. We may deny or limit a request where permitted by law,
+      including when we cannot verify it, another person’s rights would be affected, or
+      retention is legally required. You may contact us to appeal a decision; you may
+      also contact your local supervisory or data-protection authority.
+    </p>
+  </section>
+
+  <section id="organizations">
+    <h2>13. Organization accounts and customer-controlled data</h2>
+    <p>
+      If or when Clariti offers organization-managed accounts, an employer or other
+      organization that provides your access may be the controller or data fiduciary for
+      Customer Content and account data, and Clariti may process it on the organization’s
+      instructions. Administrators may then be able to manage membership, permissions,
+      content, integrations, retention, export, and account access. Direct requests
+      concerning organization-controlled data to the organization first.
+    </p>
+    <p>
+      Customers are responsible for providing legally required notices, establishing a
+      lawful basis, honouring data-subject requests, and obtaining permissions before
+      submitting information about other people. Clariti does not currently promise a
+      standard Data Processing Addendum. Organizations may request additional terms,
+      but Clariti is not obligated to accept them.
+    </p>
+  </section>
+
+  <section id="sensitive-data">
+    <h2>14. Sensitive and regulated data</h2>
+    <p>
+      The Services are not specifically designed as a compliant repository for health
+      records, full payment-card data, government identification numbers, biometric
+      identifiers, passwords, authentication secrets, children’s data, or other highly
+      sensitive or specially regulated information. If you submit such information, you
+      do so at your own risk and represent that you have all necessary authority,
+      notices, consents, safeguards, and agreements.
+    </p>
+    <p>
+      This allocation of responsibility does not remove obligations that applicable law
+      imposes directly on Clariti. Contact us before using the Services for regulated
+      processing that requires specific contractual, localization, certification, or
+      security commitments.
+    </p>
+  </section>
+
+  <section id="age">
+    <h2>15. Age restrictions</h2>
+    <p>
+      The Services are intended only for people aged 18 or older and are not directed
+      to children. We do not knowingly collect personal information from anyone under
+      18. If you believe a minor has provided information, contact us so we can
+      investigate and take appropriate action.
+    </p>
+  </section>
+
+  <section id="third-parties">
+    <h2>16. Third-party services and links</h2>
+    <p>
+      The Services may link to, interoperate with, or rely on third-party applications,
+      identity providers, AI providers, payment processors, websites, and platforms.
+      Your use of those services and their processing of information are governed by
+      their own terms and notices. We are not responsible for third-party privacy,
+      security, availability, or content.
+    </p>
+  </section>
+
+  <section id="regions">
+    <h2>17. Regional availability</h2>
+    <p>
+      Clariti may make the Services available internationally, but not where doing so
+      would violate applicable law or require registrations, licences, data-localization
+      arrangements, representatives, contracts, or compliance capabilities that Clariti
+      does not support. We may restrict or discontinue access by territory.
+    </p>
+    <p>
+      Nothing in this policy limits rights that cannot lawfully be waived. If local law
+      conflicts with this policy, the mandatory local requirement controls to the extent
+      of the conflict.
+    </p>
+  </section>
+
+  <section id="changes">
+    <h2>18. Changes to this policy</h2>
+    <p>
+      We may update this policy as the Services, providers, or laws change. We will post
+      the revised policy and update the “Last updated” date. If changes are material, we
+      may provide additional notice by email, in the Services, or through another
+      reasonable channel. Where required, we will request consent before the change
+      applies. Previous versions may be made available on request where reasonably
+      practicable.
+    </p>
+  </section>
+
+  <section id="contact">
+    <h2>19. Contact us</h2>
+    <p>
+      For privacy questions, rights requests, account deletion, complaints, or concerns,
+      contact:
+    </p>
+    <p>
+      <strong>Clariti</strong><br />
+      Bengaluru, Karnataka, India<br />
+      <a href="mailto:claritihq@gmail.com">claritihq@gmail.com</a><br />
+      <a href="https://claritihq.com">claritihq.com</a>
+    </p>
+  </section>
+</LegalLayout>

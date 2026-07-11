@@ -1,0 +1,499 @@
+---
+import LegalLayout from '../layouts/LegalLayout.astro';
+
+const sections = [
+  { id: 'acceptance', label: 'Acceptance of these Terms' },
+  { id: 'eligibility', label: 'Eligibility and authority' },
+  { id: 'beta', label: 'Beta service' },
+  { id: 'accounts', label: 'Accounts and security' },
+  { id: 'licence', label: 'Use of the Services' },
+  { id: 'content', label: 'Customer Content and output' },
+  { id: 'autonomous-ai', label: 'AI and autonomous actions' },
+  { id: 'acceptable-use', label: 'Acceptable use' },
+  { id: 'high-risk', label: 'High-risk and sensitive uses' },
+  { id: 'third-parties', label: 'Third-party services' },
+  { id: 'fees', label: 'Fees and subscriptions' },
+  { id: 'confidentiality', label: 'Confidentiality' },
+  { id: 'feedback', label: 'Feedback and publicity' },
+  { id: 'termination', label: 'Suspension and termination' },
+  { id: 'disclaimers', label: 'Disclaimers' },
+  { id: 'indemnity', label: 'Indemnification' },
+  { id: 'liability', label: 'Limitation of liability' },
+  { id: 'disputes', label: 'Law and dispute resolution' },
+  { id: 'general', label: 'General provisions' },
+  { id: 'contact', label: 'Contact' },
+];
+---
+
+<LegalLayout
+  title="Terms of Use"
+  eyebrow="Legal · Terms"
+  description="These Terms govern access to Clariti’s AI-powered quality-assurance services. Please read them carefully before creating an account or running an automated test."
+  {sections}
+>
+  <div class="notice">
+    <strong>Important:</strong> Clariti is a beta service that can autonomously view and control selected applications. You remain responsible for authorizing, supervising, and verifying every use of the Services.
+  </div>
+
+  <section id="acceptance">
+    <h2>1. Acceptance of these Terms</h2>
+    <p>
+      These Terms of Use (the <strong>“Terms”</strong>) are a binding agreement between
+      you and Clariti (<strong>“Clariti,” “we,” “us,”</strong> or <strong>“our”</strong>)
+      governing your access to and use of claritihq.com, our desktop applications, APIs,
+      beta or preview programs, and related products and services (collectively, the
+      <strong>“Services”</strong>).
+    </p>
+    <p>
+      By accessing or using the Services, creating an account, clicking to accept, or
+      otherwise indicating agreement, you accept these Terms and our
+      <a href="/privacy">Privacy Policy</a>. If you do not agree, do not use the Services.
+      Additional order forms, plan descriptions, policies, or written terms expressly
+      accepted by Clariti may also apply. If they conflict, a signed order form controls
+      for its subject matter, followed by these Terms and then other policies.
+    </p>
+  </section>
+
+  <section id="eligibility">
+    <h2>2. Eligibility, authority, and availability</h2>
+    <p>
+      You must be at least 18 years old and legally capable of entering a binding
+      agreement. If you use the Services for an employer, client, or other organization,
+      you represent that you are authorized to bind that organization. In that case,
+      “you” includes the organization, and the organization is responsible for its users.
+    </p>
+    <p>
+      The Services are not offered where their use would violate law or require Clariti
+      to satisfy unsupported registration, licensing, localization, representative,
+      contractual, or regulatory requirements. You may not use the Services if you are
+      barred under applicable trade, sanctions, or export-control laws.
+    </p>
+  </section>
+
+  <section id="beta">
+    <h2>3. Beta and preview service</h2>
+    <p>
+      The Services are currently offered as beta, preview, experimental, or early-access
+      technology. They may be incomplete, inaccurate, unstable, unavailable, or subject
+      to material change. Features may be added, modified, limited, suspended, or removed
+      at any time, and data may be lost or corrupted.
+    </p>
+    <p>
+      Clariti does not promise any uptime, support response time, service level, feature
+      permanence, backward compatibility, data durability, or general availability. You
+      should maintain independent backups and must not rely on the Services as your sole
+      system of record. We may impose usage limits, waitlists, or eligibility conditions.
+    </p>
+  </section>
+
+  <section id="accounts">
+    <h2>4. Accounts, organizations, and security</h2>
+    <p>
+      You must provide accurate, current information and keep it updated. You are
+      responsible for all activity under your account, credentials, devices, and API
+      keys. If Clariti offers organization workspaces, integrations, or single sign-on,
+      you will also be responsible for their configuration and activity, whether
+      authorized by you or resulting from your failure to secure them.
+    </p>
+    <p>
+      Keep credentials and provider keys confidential; do not share individual accounts;
+      use appropriate access controls; and notify
+      <a href="mailto:claritihq@gmail.com">claritihq@gmail.com</a> promptly if you suspect
+      compromise. Clariti may require authentication changes, revoke sessions, or disable
+      access where reasonably necessary to protect the Services.
+    </p>
+    <p>
+      If organization accounts are offered, administrators may be able to add or remove
+      users, control permissions and content, view activity, configure integrations, and
+      otherwise manage the workspace. Your organization—not Clariti—will be responsible
+      for administrator appointments and internal authorization decisions.
+    </p>
+  </section>
+
+  <section id="licence">
+    <h2>5. Licence and ownership of the Services</h2>
+    <p>
+      Subject to these Terms, Clariti grants you a limited, non-exclusive,
+      non-transferable, non-sublicensable, revocable right to access and use the Services
+      during the applicable term for your internal lawful purposes.
+    </p>
+    <p>
+      Clariti and its licensors retain all rights, title, and interest in the Services,
+      software, interfaces, models, workflows, documentation, branding, designs,
+      compilations, and underlying technology, including all improvements and derivative
+      works. Except for the limited right above, no rights are granted by implication,
+      estoppel, or otherwise. Third-party and open-source components remain subject to
+      their applicable licences.
+    </p>
+  </section>
+
+  <section id="content">
+    <h2>6. Customer Content and generated output</h2>
+    <h3>Your ownership</h3>
+    <p>
+      As between you and Clariti, you retain ownership of screenshots, text, documents,
+      videos, application data, instructions, test materials, and other content you
+      submit (<strong>“Customer Content”</strong>). To the extent permitted by law and
+      applicable third-party terms, you own output generated specifically for you through
+      the Services. AI output may not qualify for intellectual-property protection, may
+      resemble output provided to others, and may be subject to provider terms.
+    </p>
+
+    <h3>Operational licence</h3>
+    <p>
+      You grant Clariti and its service providers a worldwide, non-exclusive licence to
+      host, copy, transmit, display, adapt, analyse, and otherwise process Customer Content
+      and output only as reasonably necessary to provide, maintain, secure, support, and
+      improve the Services; comply with law; and enforce these Terms. This licence lasts
+      for as long as necessary for those purposes, subject to the Privacy Policy.
+    </p>
+
+    <h3>Your responsibilities</h3>
+    <p>You represent, warrant, and agree that:</p>
+    <ul>
+      <li>you have all rights, permissions, notices, and lawful bases required for Customer Content;</li>
+      <li>Customer Content and its processing will not violate law or another person’s rights;</li>
+      <li>you are authorized to access, record, test, and automate every target application, account, system, and dataset;</li>
+      <li>you will not submit information subject to obligations the Services cannot satisfy;</li>
+      <li>you will maintain suitable backups and independently verify output and actions; and</li>
+      <li>you are responsible for decisions, claims, deployments, and consequences based on the Services.</li>
+    </ul>
+    <p>
+      Clariti may remove or restrict content that we reasonably believe violates these
+      Terms or creates risk, but we are not required to monitor all content.
+    </p>
+  </section>
+
+  <section id="autonomous-ai">
+    <h2>7. AI output and autonomous computer control</h2>
+    <p>
+      The Services use artificial intelligence to interpret interfaces, generate tests,
+      and control selected applications. AI systems are probabilistic and may
+      misunderstand context, hallucinate, repeat actions, overlook defects, classify a
+      result incorrectly, or produce inaccurate, incomplete, biased, harmful, or
+      infringing output.
+    </p>
+    <p>
+      When granted desktop permissions, Clariti may capture screens and autonomously
+      move a pointer, click, scroll, type, press keys, navigate, submit forms, communicate,
+      create or modify records, and delete or overwrite data. Pausing, guidance, or abort
+      controls may not act instantaneously, and an action already in progress may finish.
+    </p>
+    <p>You must:</p>
+    <ul>
+      <li>use isolated test or staging environments where reasonably possible;</li>
+      <li>use synthetic or non-sensitive data and least-privilege accounts;</li>
+      <li>remove access to destructive, financial, administrative, or irreversible operations;</li>
+      <li>supervise active runs and be prepared to pause or stop them;</li>
+      <li>back up systems and data before execution; and</li>
+      <li>review and independently validate every material output and result.</li>
+    </ul>
+    <p>
+      You assume the risks of actions you authorize the Services to perform. Clariti does
+      not provide legal, security, compliance, financial, medical, or other professional
+      advice, and AI output is not a substitute for qualified human judgment.
+    </p>
+  </section>
+
+  <section id="acceptable-use">
+    <h2>8. Acceptable use</h2>
+    <p>You must not, and must not help another person to:</p>
+    <ul>
+      <li>access, test, scan, record, or control any system without explicit authorization;</li>
+      <li>violate privacy, intellectual-property, communications, employment, surveillance, or computer-misuse laws;</li>
+      <li>upload malware or use the Services for phishing, credential theft, fraud, spam, harassment, exploitation, or evasion;</li>
+      <li>interfere with, overload, disrupt, or bypass limits or security of the Services or another system;</li>
+      <li>extract secrets, system prompts, model weights, or non-public data;</li>
+      <li>scrape, crawl, benchmark for competitive publication, or systematically extract Services data without written permission;</li>
+      <li>reverse engineer, decompile, disassemble, copy, frame, mirror, or create derivative works from the Services, except where law prohibits restriction;</li>
+      <li>resell, sublicense, time-share, or provide the Services to third parties except under an authorized plan;</li>
+      <li>misrepresent identity, impersonate another person, or conceal the source of automated activity;</li>
+      <li>upload unlawful, infringing, deceptive, defamatory, or harmful material; or</li>
+      <li>use the Services to develop or improve a competing product or model without our written consent.</li>
+    </ul>
+    <p>
+      Clariti may investigate suspected violations, preserve evidence, cooperate with
+      lawful authorities, and restrict access where reasonably necessary. You are
+      responsible for ensuring automated activity complies with the target system’s
+      terms and all applicable laws.
+    </p>
+  </section>
+
+  <section id="high-risk">
+    <h2>9. High-risk systems and sensitive data</h2>
+    <p>
+      You may not use the Services to operate, control, or make decisions for systems
+      where an error could reasonably cause death, bodily injury, significant property
+      or environmental damage, denial of essential services, unlawful discrimination,
+      or major financial loss. Prohibited contexts include weapons, emergency response,
+      critical infrastructure, life-support, autonomous vehicles, medical diagnosis or
+      treatment, financial transaction authorization, and other safety-critical uses.
+    </p>
+    <p>
+      The Services are not specifically designed to meet specialized requirements for
+      health records, payment-card environments, government-classified information,
+      biometric systems, authentication secrets, children’s data, or similarly sensitive
+      or regulated information. If you submit such data, you do so at your own risk and
+      remain responsible for all required safeguards, consents, contracts, and compliance.
+      This does not limit obligations that law directly imposes on Clariti.
+    </p>
+  </section>
+
+  <section id="third-parties">
+    <h2>10. Third-party services and integrations</h2>
+    <p>
+      The Services may rely on or connect with third-party AI providers, cloud platforms,
+      identity providers, analytics services, payment processors, applications, APIs, and
+      websites. Third-party services are governed by their own terms, privacy notices,
+      availability, limits, and charges. Clariti does not control and is not responsible
+      for third-party services, content, security, processing, or acts.
+    </p>
+    <p>
+      If you provide an API key or connect an account, you authorize Clariti to use that
+      credential and exchange information with the provider as necessary to perform your
+      request. You are responsible for maintaining the provider account, complying with
+      its terms, configuring retention and privacy controls, and paying provider charges.
+      Clariti may change, suspend, or discontinue an integration at any time.
+    </p>
+  </section>
+
+  <section id="fees">
+    <h2>11. Fees, subscriptions, and taxes</h2>
+    <p>
+      Clariti may introduce paid plans, usage charges, trials, credits, or add-ons. Plan
+      details presented at purchase form part of these Terms. Unless stated otherwise,
+      fees are quoted exclusive of taxes, payable in advance, non-cancellable, and
+      non-refundable except where required by law or expressly provided in written plan
+      terms. You are responsible for applicable taxes other than taxes on Clariti’s net
+      income.
+    </p>
+    <p>
+      A subscription may renew automatically for successive periods until cancelled.
+      You authorize Clariti or its payment processor to charge the payment method on file.
+      We will provide renewal, cancellation, and price-change notices required by law.
+      Cancellation takes effect at the end of the then-current paid period unless stated
+      otherwise; it does not produce a prorated refund.
+    </p>
+    <p>
+      We may change prices prospectively, correct billing errors, suspend service for
+      overdue amounts, and charge reasonable collection costs where lawful. Trials and
+      promotional credits may expire, be modified, or be withdrawn. Payment processors
+      may impose separate terms.
+    </p>
+  </section>
+
+  <section id="confidentiality">
+    <h2>12. Confidentiality</h2>
+    <p>
+      Each party may receive non-public information that is identified as confidential
+      or reasonably should be understood as confidential. The receiving party will use
+      it only to exercise rights and perform obligations under these Terms, protect it
+      using reasonable care, and disclose it only to personnel and providers who need it
+      and are bound by appropriate duties.
+    </p>
+    <p>
+      Confidential information does not include information independently developed
+      without use of the other party’s information, lawfully received without restriction,
+      or publicly available through no breach. A party may disclose information when
+      legally compelled if it gives notice where lawful and reasonably assists protective
+      efforts. These obligations do not replace a separately signed confidentiality
+      agreement.
+    </p>
+  </section>
+
+  <section id="feedback">
+    <h2>13. Feedback, marks, and copyright concerns</h2>
+    <p>
+      If you provide ideas, suggestions, evaluations, or feedback, you grant Clariti a
+      perpetual, irrevocable, worldwide, sublicensable, transferable, royalty-free right
+      to use and commercialize it without restriction or compensation. Do not submit
+      feedback you are not authorized to provide.
+    </p>
+    <p>
+      Neither party may use the other’s names, logos, or marks without prior permission,
+      except Clariti may identify you as a customer only if you separately consent.
+      Report alleged infringement to
+      <a href="mailto:claritihq@gmail.com">claritihq@gmail.com</a> with identification of
+      the work, the allegedly infringing material, your contact details, a good-faith
+      statement, and evidence of authority.
+    </p>
+  </section>
+
+  <section id="termination">
+    <h2>14. Suspension and termination</h2>
+    <p>
+      You may stop using the Services at any time and may request account deletion.
+      Subscription cancellation and data deletion are separate actions. Clariti may
+      suspend, restrict, or terminate access immediately if we reasonably believe you
+      breached these Terms, created security or legal risk, failed to pay, exposed us or
+      others to liability, or if necessary to protect the Services. We may also terminate
+      a beta or free Service for any reason, with notice where reasonably practicable.
+    </p>
+    <p>
+      On termination, your licence ends and you must stop using the Services. Access to
+      Customer Content may end immediately; export data before termination. We do not
+      guarantee post-termination retrieval. Provisions that by nature should survive
+      will survive, including ownership, payment, confidentiality, feedback, disclaimers,
+      indemnity, liability limitations, disputes, and general provisions.
+    </p>
+  </section>
+
+  <section id="disclaimers">
+    <h2>15. Disclaimers</h2>
+    <p>
+      <strong>
+        TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SERVICES, OUTPUT, DOCUMENTATION, AND
+        ALL RELATED MATERIALS ARE PROVIDED “AS IS” AND “AS AVAILABLE,” WITH ALL FAULTS.
+        CLARITI DISCLAIMS ALL EXPRESS, IMPLIED, STATUTORY, AND OTHER WARRANTIES, INCLUDING
+        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT,
+        ACCURACY, QUIET ENJOYMENT, AND WARRANTIES ARISING FROM COURSE OF DEALING OR USAGE.
+      </strong>
+    </p>
+    <p>
+      Clariti does not warrant that the Services will be uninterrupted, secure, error-free,
+      complete, compliant, compatible, or free of harmful components; that defects will
+      be corrected; that data will be preserved; that AI output will be unique or accurate;
+      or that tests will identify every defect, vulnerability, or requirement. You bear
+      the risk of using the Services and output.
+    </p>
+    <p>
+      Some jurisdictions do not allow certain disclaimers. In those jurisdictions, these
+      disclaimers apply only to the extent permitted, and mandatory rights remain intact.
+    </p>
+  </section>
+
+  <section id="indemnity">
+    <h2>16. Indemnification</h2>
+    <p>
+      To the maximum extent permitted by law, you will defend, indemnify, and hold harmless
+      Clariti and its affiliates, personnel, contractors, service providers, licensors,
+      successors, and assigns from claims, proceedings, losses, liabilities, damages,
+      judgments, penalties, costs, and reasonable legal fees arising from or relating to:
+    </p>
+    <ul>
+      <li>your Customer Content, systems, accounts, data, or generated output;</li>
+      <li>your access to or use of the Services, including autonomous actions;</li>
+      <li>your breach of these Terms, law, provider terms, or another person’s rights;</li>
+      <li>your lack of authority to test, record, access, or control a target system; or</li>
+      <li>a dispute between you and your organization, users, customers, or another third party.</li>
+    </ul>
+    <p>
+      Clariti will provide reasonable notice and may control the defence and settlement.
+      You will cooperate and may not settle a claim in a way that admits fault by or
+      imposes obligations on Clariti without our written consent.
+    </p>
+  </section>
+
+  <section id="liability">
+    <h2>17. Limitation of liability</h2>
+    <p>
+      <strong>
+        TO THE MAXIMUM EXTENT PERMITTED BY LAW, CLARITI AND ITS AFFILIATES, PERSONNEL,
+        LICENSORS, AND PROVIDERS WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL,
+        CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES; LOST PROFITS, REVENUE, BUSINESS,
+        GOODWILL, OR OPPORTUNITIES; LOSS, CORRUPTION, OR DISCLOSURE OF DATA; BUSINESS
+        INTERRUPTION; SUBSTITUTE SERVICES; OR DAMAGE CAUSED BY AI OUTPUT OR AUTONOMOUS
+        ACTIONS, EVEN IF ADVISED THAT SUCH LOSS WAS POSSIBLE.
+      </strong>
+    </p>
+    <p>
+      To the maximum extent permitted by law, the aggregate liability of Clariti and the
+      parties above for all claims arising out of or relating to the Services or these
+      Terms will not exceed the greater of (a) fees you paid directly to Clariti for the
+      Services during the 12 months before the event giving rise to liability or (b)
+      ₹1,000 if you used only free Services.
+    </p>
+    <p>
+      These limitations apply regardless of legal theory and even if a remedy fails its
+      essential purpose. They do not limit liability that cannot lawfully be excluded or
+      limited, including liability for fraud or wilful misconduct where applicable.
+      The allocation of risk in this section is an essential basis of the agreement.
+    </p>
+  </section>
+
+  <section id="disputes">
+    <h2>18. Governing law and dispute resolution</h2>
+    <p>
+      These Terms are governed by the laws of India, without regard to conflict-of-law
+      principles. Mandatory protections available to you under applicable law remain
+      unaffected.
+    </p>
+    <h3>Good-faith resolution</h3>
+    <p>
+      Before commencing arbitration, a party must send a written notice describing the
+      dispute and requested relief. The parties will attempt in good faith to resolve it
+      for at least 30 days after receipt. Notices to Clariti must be sent to
+      <a href="mailto:claritihq@gmail.com">claritihq@gmail.com</a>.
+    </p>
+    <h3>Arbitration</h3>
+    <p>
+      Any unresolved dispute arising from or relating to these Terms or the Services will
+      be finally resolved by binding arbitration under the Arbitration and Conciliation
+      Act, 1996, as amended. The tribunal will consist of one arbitrator mutually appointed
+      by the parties or appointed in accordance with that Act. The seat and venue of
+      arbitration will be Bengaluru, Karnataka, India; proceedings will be in English;
+      and the award may be enforced in any court of competent jurisdiction.
+    </p>
+    <p>
+      To the extent permitted by law, disputes must be brought individually and not as a
+      class, collective, consolidated, or representative proceeding. Either party may
+      seek urgent interim or injunctive relief from courts of competent jurisdiction in
+      Bengaluru, Karnataka, including to protect intellectual property, confidential
+      information, security, or prevent unauthorized access. If arbitration is
+      unenforceable for a dispute, courts in Bengaluru will have exclusive jurisdiction,
+      subject to non-waivable rights.
+    </p>
+  </section>
+
+  <section id="general">
+    <h2>19. General provisions</h2>
+    <h3>Changes</h3>
+    <p>
+      We may update these Terms by posting a revised version and changing the effective
+      date. For material changes, we may provide additional notice. Unless law requires
+      otherwise, changes apply prospectively on the stated date. Continued use after that
+      date constitutes acceptance; if you disagree, stop using the Services.
+    </p>
+    <h3>Electronic communications</h3>
+    <p>
+      You consent to receive agreements, notices, disclosures, and other communications
+      electronically. Service and legal notices may be delivered by email, in-product
+      message, or posting. You must keep your contact information current.
+    </p>
+    <h3>Assignment</h3>
+    <p>
+      You may not assign or transfer these Terms without Clariti’s written consent.
+      Clariti may assign them in connection with a reorganization, financing, merger,
+      acquisition, sale of assets, or by operation of law.
+    </p>
+    <h3>Force majeure</h3>
+    <p>
+      Clariti is not liable for delay or failure caused by circumstances beyond reasonable
+      control, including internet or provider failures, cyberattacks, labour disputes,
+      natural disasters, epidemics, war, terrorism, civil unrest, government action,
+      utility failures, or changes in law.
+    </p>
+    <h3>Entire agreement; severability; waiver</h3>
+    <p>
+      These Terms and incorporated documents are the entire agreement about the Services
+      and supersede prior discussions on that subject. If a provision is unenforceable,
+      it will be modified to the minimum extent necessary and the rest remains effective.
+      Failure to enforce a provision is not a waiver. Headings are for convenience;
+      “including” means “including without limitation.” No third party is a beneficiary
+      unless these Terms expressly say otherwise.
+    </p>
+  </section>
+
+  <section id="contact">
+    <h2>20. Contact</h2>
+    <p>
+      Questions, notices, and complaints concerning these Terms may be sent to:
+    </p>
+    <p>
+      <strong>Clariti</strong><br />
+      Bengaluru, Karnataka, India<br />
+      <a href="mailto:claritihq@gmail.com">claritihq@gmail.com</a><br />
+      <a href="https://claritihq.com">claritihq.com</a>
+    </p>
+  </section>
+</LegalLayout>

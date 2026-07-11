@@ -1,0 +1,217 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Section {
+  id: string;
+  label: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  eyebrow: string;
+  sections: Section[];
+}
+
+const { title, description, eyebrow, sections } = Astro.props;
+const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+---
+
+<BaseLayout title={`${title} — Clariti`} description={description}>
+  <a
+    href="#legal-content"
+    class="fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-ink outline-none transition-transform focus:translate-y-0 focus:ring-2 focus:ring-violet-400 focus:ring-offset-2 focus:ring-offset-ink"
+  >
+    Skip to legal content
+  </a>
+  <div class="relative min-h-screen overflow-hidden bg-ink">
+    <div class="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(circle_at_50%_0%,rgba(124,58,237,0.22),transparent_62%)]"></div>
+    <div class="pointer-events-none absolute inset-0 bg-grid opacity-40 [mask-image:linear-gradient(to_bottom,black,transparent_42rem)]"></div>
+
+    <header class="relative z-10 border-b border-white/10">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 lg:px-8">
+        <a
+          href="/"
+          class="group inline-flex items-center gap-3 rounded-lg text-white outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-4 focus-visible:ring-offset-ink"
+          aria-label="Clariti home"
+        >
+          <span class="grid h-9 w-9 place-items-center rounded-xl border border-violet-400/30 bg-violet-500/15 font-bold text-violet-200 transition-colors group-hover:bg-violet-500/25">
+            C
+          </span>
+          <span class="text-lg font-bold tracking-tight">Clariti</span>
+        </a>
+        <a
+          href="mailto:claritihq@gmail.com"
+          class="rounded-lg text-sm text-white/55 outline-none transition-colors hover:text-white focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-4 focus-visible:ring-offset-ink"
+        >
+          claritihq@gmail.com
+        </a>
+      </div>
+    </header>
+
+    <main class="relative z-10">
+      <section class="mx-auto max-w-7xl px-6 pb-14 pt-20 lg:px-8 lg:pb-20 lg:pt-28">
+        <p class="mb-5 font-mono text-xs font-semibold uppercase tracking-[0.24em] text-violet-300">
+          {eyebrow}
+        </p>
+        <h1 class="max-w-4xl text-4xl font-bold tracking-[-0.045em] text-white sm:text-6xl lg:text-7xl">
+          {title}
+        </h1>
+        <p class="mt-7 max-w-2xl text-base leading-7 text-white/55 sm:text-lg">
+          {description}
+        </p>
+        <div class="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-xs uppercase tracking-[0.14em] text-white/55">
+          <span>Effective July 11, 2026</span>
+          <span aria-hidden="true" class="h-1 w-1 rounded-full bg-violet-400"></span>
+          <span>Last updated July 11, 2026</span>
+        </div>
+      </section>
+
+      <div class="mx-auto grid max-w-7xl gap-12 border-t border-white/10 px-6 py-14 lg:grid-cols-[14rem_minmax(0,48rem)] lg:gap-20 lg:px-8 lg:py-20">
+        <aside>
+          <nav aria-label={`${title} sections`} class="lg:sticky lg:top-8">
+            <p class="mb-4 font-mono text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-white/55">
+              On this page
+            </p>
+            <ol class="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
+              {sections.map((section, index) => (
+                <li>
+                  <a
+                    href={`#${section.id}`}
+                    class="group flex items-start gap-3 rounded-lg px-2 py-1.5 text-sm leading-5 text-white/45 outline-none transition-colors hover:bg-white/[0.04] hover:text-white focus-visible:ring-2 focus-visible:ring-violet-400"
+                  >
+                    <span class="mt-px font-mono text-[0.65rem] text-violet-400/65">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span>{section.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </aside>
+
+        <article
+          id="legal-content"
+          tabindex="-1"
+          class="legal-copy min-w-0 text-[0.96rem] leading-7 text-white/62 sm:text-base sm:leading-8"
+        >
+          <slot />
+        </article>
+      </div>
+
+      <section class="border-t border-white/10">
+        <div class="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-10 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+          <p class="text-sm text-white/55">Review Clariti’s other legal document.</p>
+          <nav aria-label="Legal documents" class="flex flex-wrap gap-3">
+            <a
+              href="/privacy"
+              aria-current={currentPath === '/privacy' ? 'page' : undefined}
+              class="rounded-full border border-white/10 px-4 py-2 text-sm text-white/60 outline-none transition-colors hover:border-violet-400/40 hover:text-white focus-visible:ring-2 focus-visible:ring-violet-400 aria-[current=page]:border-violet-400/40 aria-[current=page]:bg-violet-500/10 aria-[current=page]:text-violet-200"
+            >
+              Privacy Policy
+            </a>
+            <a
+              href="/terms"
+              aria-current={currentPath === '/terms' ? 'page' : undefined}
+              class="rounded-full border border-white/10 px-4 py-2 text-sm text-white/60 outline-none transition-colors hover:border-violet-400/40 hover:text-white focus-visible:ring-2 focus-visible:ring-violet-400 aria-[current=page]:border-violet-400/40 aria-[current=page]:bg-violet-500/10 aria-[current=page]:text-violet-200"
+            >
+              Terms of Use
+            </a>
+          </nav>
+        </div>
+      </section>
+    </main>
+
+    <footer class="relative z-10 border-t border-white/10 px-6 py-6 text-center text-xs text-white/30">
+      © 2026 Clariti. All rights reserved.
+    </footer>
+  </div>
+</BaseLayout>
+
+<style is:global>
+  .legal-copy section {
+    scroll-margin-top: 2rem;
+  }
+
+  .legal-copy section + section {
+    margin-top: 3.5rem;
+    padding-top: 3.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .legal-copy h2 {
+    margin-bottom: 1.25rem;
+    color: #fff;
+    font-size: clamp(1.45rem, 3vw, 1.85rem);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+  }
+
+  .legal-copy h3 {
+    margin-top: 2rem;
+    margin-bottom: 0.65rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.05rem;
+    font-weight: 650;
+  }
+
+  .legal-copy p + p,
+  .legal-copy p + ul,
+  .legal-copy p + ol,
+  .legal-copy ul + p,
+  .legal-copy ol + p {
+    margin-top: 1rem;
+  }
+
+  .legal-copy ul,
+  .legal-copy ol {
+    padding-left: 1.35rem;
+  }
+
+  .legal-copy ul {
+    list-style: disc;
+  }
+
+  .legal-copy ol {
+    list-style: decimal;
+  }
+
+  .legal-copy li + li {
+    margin-top: 0.55rem;
+  }
+
+  .legal-copy strong {
+    color: rgba(255, 255, 255, 0.88);
+    font-weight: 650;
+  }
+
+  .legal-copy a {
+    color: #c4b5fd;
+    text-decoration: underline;
+    text-decoration-color: rgba(196, 181, 253, 0.35);
+    text-underline-offset: 0.2em;
+    transition: color 150ms ease, text-decoration-color 150ms ease;
+  }
+
+  .legal-copy a:hover {
+    color: #ede9fe;
+    text-decoration-color: #c4b5fd;
+  }
+
+  .legal-copy a:focus-visible {
+    border-radius: 0.2rem;
+    outline: 2px solid #a78bfa;
+    outline-offset: 3px;
+  }
+
+  .legal-copy .notice {
+    margin: 1.5rem 0;
+    border: 1px solid rgba(167, 139, 250, 0.22);
+    border-radius: 1rem;
+    background: rgba(124, 58, 237, 0.08);
+    padding: 1.1rem 1.25rem;
+    color: rgba(255, 255, 255, 0.72);
+  }
+</style>

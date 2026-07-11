@@ -6,7 +6,7 @@ import { GlobeIcon, MonitorIcon, PhoneIcon, LogoMark } from './Icons';
 const SURFACES = [
   { label: 'Web app', Icon: GlobeIcon },
   { label: 'Desktop app', Icon: MonitorIcon },
-  { label: 'Mobile simulator', Icon: PhoneIcon },
+  { label: 'Android/iOS', Icon: PhoneIcon },
 ];
 
 export default function PlatformAgnostic() {
@@ -46,7 +46,7 @@ export default function PlatformAgnostic() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.6, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5"
+                  className="flex flex-col items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 text-center"
                 >
                   <Icon className="h-7 w-7 text-white/70" />
                   <span className="text-sm text-white/60">{s.label}</span>

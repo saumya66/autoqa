@@ -21,7 +21,7 @@ export default function AppWindow({
       className={`overflow-hidden rounded-2xl border border-white/10 bg-[#0e0e16] shadow-2xl shadow-black/60 ${className}`}
     >
       {/* Title bar */}
-      <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3">
+      <div className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-white/[0.03] px-4 py-3">
         <div className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
           <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
@@ -38,7 +38,7 @@ export default function AppWindow({
         )}
       </div>
       {/* Body */}
-      <div className={bodyClassName}>{children}</div>
+      <div className={`flex min-h-0 flex-1 flex-col ${bodyClassName}`}>{children}</div>
     </div>
   );
 }

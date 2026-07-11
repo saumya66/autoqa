@@ -8,7 +8,7 @@ const NODES = [
   { key: 'SEE', Icon: EyeIcon, desc: 'Looks at the screen like a user.' },
   { key: 'THINK', Icon: SparkIcon, desc: 'Decides what to do next.' },
   { key: 'ACT', Icon: ArrowRight, desc: 'Clicks, types, moves through the app.' },
-  { key: 'ASK', Icon: QuestionIcon, desc: 'Checks with you when unsure.' },
+  { key: 'ASK', Icon: QuestionIcon, desc: 'Asks when unsure — and lets you steer.' },
   { key: 'JUDGE', Icon: GavelIcon, desc: 'Decides what passed and what broke.' },
 ];
 
@@ -33,28 +33,34 @@ export default function AgenticLoop() {
   }, []);
 
   return (
-    <section className="relative mx-auto max-w-6xl px-6 py-28 sm:py-36">
+    <section className="relative mx-auto max-w-6xl overflow-hidden px-6 py-20 sm:py-28 lg:py-36">
       <div className="text-center">
         <Reveal className="flex justify-center">
           <Eyebrow>HOW IT THINKS</Eyebrow>
         </Reveal>
         <Reveal delay={0.05}>
           <h2 className="mx-auto mt-5 max-w-2xl text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
-            Testing, the way a <span className="text-gradient">human does it.</span>
+            Clariti puts <span className="text-gradient">multiple agents</span> to work.
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-white/55 sm:text-lg">
-            Every test is a loop — look, decide, try, ask if unsure, judge the result — repeated
-            until the job&apos;s done. The same loop your QA team runs in their head. Now it runs on
-            its own.
+            Under the hood, Clariti runs a tight loop — look at the screen, decide what to do, act,
+            ask if unsure, judge the result. The same loop your QA runs in their head, now running
+            on its own. And at any point, you can step in, correct it, and let it carry on.
           </p>
         </Reveal>
       </div>
 
-      {/* Circular diagram (md+) */}
-      <div className="mt-16 hidden justify-center md:flex">
-        <div className="relative" style={{ width: SIZE, height: SIZE }}>
+      {/* Circular diagram — shown on all screens, scaled down on mobile.
+          Use absolute + left-1/2 -translate-x-1/2 so the VISUAL centre aligns
+          with the viewport centre even when the layout box (460px) exceeds the
+          mobile width. Wrapper height matches the scaled visual height. */}
+      <div className="relative mt-12 h-[276px] sm:h-[368px] md:h-[460px] overflow-hidden">
+        <div
+          style={{ width: SIZE, height: SIZE }}
+          className="absolute left-1/2 top-0 -translate-x-1/2 origin-top scale-[0.6] sm:scale-[0.8] md:scale-100"
+        >
           {/* ring */}
           <svg className="absolute inset-0" width={SIZE} height={SIZE} aria-hidden="true">
             <circle
@@ -70,13 +76,13 @@ export default function AgenticLoop() {
 
           {/* traveling token */}
           <motion.div
-            className="absolute z-20 h-4 w-4 rounded-full bg-violet-400 shadow-[0_0_24px_6px_rgba(168,85,247,0.6)]"
+            className="absolute z-20 h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_12px_2px_rgba(168,85,247,0.45)]"
             animate={{
-              left: positions[active].x - 8,
-              top: positions[active].y - 8,
+              left: positions[active].x - 5,
+              top: positions[active].y - 5,
             }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            style={{ left: positions[0].x - 8, top: positions[0].y - 8 }}
+            style={{ left: positions[0].x - 5, top: positions[0].y - 5 }}
           />
 
           {/* center label */}
@@ -133,26 +139,6 @@ export default function AgenticLoop() {
             );
           })}
         </div>
-      </div>
-
-      {/* Vertical list (mobile) */}
-      <div className="mt-12 space-y-3 md:hidden">
-        {NODES.map((n, i) => {
-          const Icon = n.Icon;
-          return (
-            <Reveal key={n.key} delay={i * 0.06}>
-              <div className="flex items-center gap-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/12 ring-1 ring-violet-400/25">
-                  <Icon className="h-5 w-5 text-violet-300" />
-                </div>
-                <div>
-                  <p className="font-mono text-xs font-semibold tracking-wide text-white">{n.key}</p>
-                  <p className="text-sm text-white/55">{n.desc}</p>
-                </div>
-              </div>
-            </Reveal>
-          );
-        })}
       </div>
     </section>
   );

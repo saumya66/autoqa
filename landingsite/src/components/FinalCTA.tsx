@@ -14,13 +14,13 @@ export default function FinalCTA() {
       <div className="relative z-10 mx-auto max-w-3xl px-6 text-center">
         <Reveal>
           <h2 className="text-[clamp(2.2rem,5.5vw,4rem)] font-extrabold leading-[1.02] tracking-[-0.02em] text-white">
-            Stop writing tests. <br className="hidden sm:block" />
-            <span className="text-gradient">Start shipping with confidence.</span>
+            Autonomous. Visual. Relentless. <br className="hidden sm:block" />
+            <span className="text-gradient">This is your new QA.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/60">
-            Give your team the QA engineer that never sleeps — and never writes a line of test code.
+            Software testing doesn&apos;t need another framework. It needs eyes.
           </p>
         </Reveal>
         <Reveal delay={0.15}>
@@ -28,11 +28,6 @@ export default function FinalCTA() {
             <BookDemoButton size="lg" className="w-full sm:w-auto" />
             <WatchDemoButton size="lg" variant="ghost" className="w-full sm:w-auto" />
           </div>
-        </Reveal>
-        <Reveal delay={0.2}>
-          <p className="mt-8 font-mono text-xs text-white/25">
-            macOS Ventura+ · Apple Silicon &amp; Intel · Screen Recording + Accessibility
-          </p>
         </Reveal>
       </div>
     </section>

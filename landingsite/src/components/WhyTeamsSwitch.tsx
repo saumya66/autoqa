@@ -9,6 +9,7 @@ const ROWS = [
   'No scripts to write or maintain',
   'Survives redesigns',
   'Asks instead of failing silently',
+  'Pause & guide it mid-run',
 ];
 
 // Real beta quotes go here once collected. Empty until then (no fabricated proof).

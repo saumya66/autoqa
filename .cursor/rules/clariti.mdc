@@ -1,7 +1,10 @@
 ---
-alwaysApply: false
+alwaysApply: true
 ---
-> **STANDING INSTRUCTION FOR AI AGENTS:** After any code change that the user has tested and verified, update this file to reflect the new state of the system. Keep every section accurate — remove outdated descriptions, update flow diagrams, and correct any file/endpoint references that have changed. This document is the source of truth for the codebase architecture.
+
+> **STRICT STANDING INSTRUCTION FOR AI EDITORS AGENTS:** After any code change that the user has tested and verified, update this file to reflect the new state of the system. Keep every section accurate — remove outdated descriptions, update flow diagrams, and correct any file/endpoint references that have changed. This document is the source of truth for the codebase architecture.
+
+If the user asks you to build anything your job, is to ask them any relevant questions and then present them with a plan first and only if they approve go build it. 
 
 # Moonshot — Architecture & Flows Reference
 
@@ -925,7 +928,7 @@ All TODOs below are **done**:
 **Build commands (current):**
 ```bash
 # 1. Build Python sidecar
-cd backend && .venv/bin/pyinstaller clariti-backend.spec --noconfirm
+cd backend && .venv/bin/pyinstaller clariti-backend.spec --noconfirm && cd ..
 # Output: backend/dist/clariti-backend
 
 # 2. Build Electron DMG
@@ -1032,3 +1035,15 @@ sudo tccutil reset ScreenCapture
 sudo tccutil reset Accessibility
 ```
 After running, macOS will show the native permission dialogs again on next use.
+
+---
+
+## TODO
+
+### Landing Site SEO
+
+- [ ] Update `landingsite/public/og-image.png` with a more descriptive social preview, then replace the generic `og:image:alt` and `twitter:image:alt` values in `landingsite/src/layouts/BaseLayout.astro` with an accurate description of the new image.
+
+
+# BUILDING WITH AI
+If the user asks you to build anything your job, is to ask them any relevant questions and then present them with a plan first and only if they approve go build it. 

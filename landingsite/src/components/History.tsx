@@ -25,24 +25,25 @@ export default function History() {
     <section id="history" className="relative mx-auto max-w-5xl px-6 py-28 sm:py-32">
       <div className="max-w-2xl">
         <Reveal className="flex">
-          <Eyebrow>EVERY RUN, SAVED</Eyebrow>
+          <Eyebrow>STORED IN THE CLOUD</Eyebrow>
         </Reveal>
         <Reveal delay={0.05}>
           <h2 className="mt-5 text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
-            Finally, QA you can <span className="text-gradient">look back on.</span>
+            All your test data <span className="text-gradient">lives in the cloud.</span>
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mt-5 text-base leading-relaxed text-white/55">
-            Every run is stored with every step. Open any past run and replay exactly what happened —
-            a clear, shareable record of what was tested and what broke. No more &ldquo;works on my
+            Every run, every step, every result — stored securely in the cloud and ready to audit.
+            Your whole team sees the same history, from anywhere, anytime. No more &ldquo;works on my
             machine.&rdquo;
           </p>
         </Reveal>
       </div>
 
       <Reveal delay={0.1} y={30} className="mt-12">
-        <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.015]">
+        <div className="-mx-6 overflow-x-auto px-6 sm:mx-0 sm:px-0">
+        <div className="min-w-[540px] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.015]">
           {/* header */}
           <div className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr] gap-4 border-b border-white/10 bg-white/[0.02] px-5 py-3 font-mono text-[11px] tracking-widest text-white/35">
             <span>RUN</span>
@@ -77,6 +78,7 @@ export default function History() {
               <span className="text-right font-mono text-white/40">{r.when}</span>
             </motion.div>
           ))}
+        </div>
         </div>
       </Reveal>
     </section>

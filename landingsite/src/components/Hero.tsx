@@ -61,7 +61,7 @@ export default function Hero() {
         {/* Headline — four verbs animate in */}
         <h1 className="font-sans text-[clamp(2.4rem,7.5vw,5.25rem)] font-extrabold leading-[0.98] tracking-[-0.03em] text-white">
           <span className="flex flex-wrap items-center justify-center gap-x-[0.35em] gap-y-1">
-            {VERBS.map(({ word, Icon }, i) => (
+            {VERBS.map(({ word }, i) => (
               <motion.span
                 key={word}
                 initial={{ opacity: 0, filter: 'blur(14px)', y: 12 }}
@@ -71,9 +71,6 @@ export default function Hero() {
               >
                 <span className="text-white/25">It</span>
                 <span className="text-gradient">{word}.</span>
-                {i < 3 && (
-                  <Icon className="h-[0.5em] w-[0.5em] shrink-0 text-violet-400/70" strokeWidth={2} />
-                )}
               </motion.span>
             ))}
           </span>
@@ -94,9 +91,8 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 1.5, ease: [0.16, 1, 0.3, 1] }}
           className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-white/55 sm:text-lg"
         >
-          Clariti tests your product the way a person does — it opens your app, works through
-          every flow, notices what looks wrong, and tells you what broke.{' '}
-          <span className="text-white/75">No test scripts. No selectors. No QA backlog.</span>
+          Clariti tests your product the way a real QA does — it sees your app, works through
+          every flow, notices what looks wrong, and tells you what broke.
         </motion.p>
 
         {/* CTAs */}

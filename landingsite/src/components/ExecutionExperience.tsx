@@ -6,29 +6,30 @@ import { CheckIcon } from './Icons';
 
 const CHECKS = [
   'Watch every step live',
-  'Step in and guide it',
-  'Every run recorded',
-  'Replay any run, anytime',
+  'Pause & guide any run',
+  'Correct it in plain English',
+  'Every run recorded & stored in cloud',
 ];
 
 export default function ExecutionExperience() {
   return (
-    <section className="relative mx-auto max-w-6xl px-6 py-28 sm:py-32">
-      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+    <section className="relative mx-auto max-w-7xl px-6 py-28 sm:py-32">
+      <div className="grid items-center gap-12 lg:grid-cols-[2fr_3fr] lg:gap-14">
         <div>
           <Reveal className="flex">
             <Eyebrow>THE EXECUTION EXPERIENCE</Eyebrow>
           </Reveal>
           <Reveal delay={0.05}>
             <h2 className="mt-5 text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
-              See everything. A <span className="text-gradient">glass box,</span> not a black box.
+              See everything. <span className="text-gradient">Steer anything.</span>
             </h2>
           </Reveal>
           <Reveal delay={0.1}>
-            <p className="mt-5 max-w-md text-base leading-relaxed text-white/55">
-              Watch each step as it happens — what Clariti did, why, and what it found. Jump in and
-              steer it anytime. And because every run is saved step by step, you can replay exactly
-              what happened whenever you need to.
+            <p className="mt-5 text-base leading-relaxed text-white/55">
+              Watch each step as it happens — and take the wheel whenever you want. Pause a run,
+              correct a step, or guide Clariti in plain English, then let it carry on. It&apos;s a
+              glass box, not a black box — and every run is saved so you can check exactly what
+              happened.
             </p>
           </Reveal>
 

@@ -72,20 +72,23 @@ function GenerateMock() {
 const STEPS = [
   {
     num: '01',
-    label: 'SHOW IT YOUR PRODUCT',
-    body: 'Drop in a few screenshots and describe your app in plain English. Clariti learns what your product is and how it\u2019s meant to work — in minutes, not a setup project.',
+    label: 'ONBOARD YOUR PROJECT',
+    title: 'Tell it about your app.',
+    body: 'Tell Clariti about your product — what it does, who uses it, how it\u2019s meant to work. Plain English is all you need. No config files, no selectors, no setup project.',
     Mock: ContextMock,
   },
   {
     num: '02',
-    label: 'IT WRITES THE TEST PLAN',
-    body: 'Clariti proposes a full set of tests — the happy paths, the edge cases, the things that usually break. Review them, tweak in plain English. No code.',
+    label: 'CREATE A TEST SUITE',
+    title: 'Describe what you want to test.',
+    body: 'Just like you\u2019d brief your QA. Drop in a screenshot if it helps. Clariti generates the full test cases — and you decide what makes the cut. Add, remove, tweak in plain English.',
     Mock: GenerateMock,
   },
   {
     num: '03',
-    label: 'IT RUNS THEM LIKE A USER',
-    body: 'Clariti opens your live app and works through every test — clicking, typing, checking — while you watch. When it\u2019s done, you get results you can trust and replay.',
+    label: "THAT'S IT. RUN.",
+    title: 'Hit run. Watch it go.',
+    body: 'Clariti finds your live app and works through every test — clicking, typing, checking — exactly like a human would. You get results you can trust, replay, and share.',
     Mock: () => <RunnerMockup animateLog />,
   },
 ];
@@ -93,17 +96,21 @@ const STEPS = [
 function Panel({ step }: { step: (typeof STEPS)[number] }) {
   const Mock = step.Mock;
   return (
-    <div className="flex w-[86vw] shrink-0 items-center gap-8 sm:w-[80vw] lg:w-[68vw] lg:gap-14">
-      <div className="w-2/5 shrink-0">
-        <div className="numeral-outline text-[clamp(4rem,12vw,9rem)] font-extrabold leading-none">
+    <div className="flex w-[88vw] shrink-0 flex-col gap-2 px-1 md:w-[90vw] md:flex-row md:items-center md:gap-8 lg:w-[75vw] lg:gap-12">
+      <div className="md:w-2/5 md:shrink-0">
+        <div className="numeral-outline text-[clamp(2rem,8vw,9rem)] font-extrabold leading-none">
           {step.num}
         </div>
-        <p className="mt-4 font-mono text-xs font-semibold tracking-[0.2em] text-violet-300">
+        <p className="mt-2 font-mono text-[10px] font-semibold tracking-[0.2em] text-violet-300 sm:text-xs sm:mt-4">
           {step.label}
         </p>
-        <p className="mt-3 max-w-sm text-base leading-relaxed text-white/55">{step.body}</p>
+        <h3 className="mt-1.5 text-[clamp(1.1rem,2.5vw,2rem)] font-bold leading-tight tracking-tight text-white sm:mt-3">
+          {step.title}
+        </h3>
+        <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-white/55 sm:mt-3 sm:text-base">{step.body}</p>
       </div>
-      <div className="min-w-0 flex-1">
+      {/* zoom shrinks layout + visual together — no dead-space compensation needed */}
+      <div className="min-w-0 flex-1 [zoom:0.58] sm:[zoom:0.75] md:[zoom:1]">
         <Mock />
       </div>
     </div>
@@ -113,18 +120,27 @@ function Panel({ step }: { step: (typeof STEPS)[number] }) {
 export default function HowItWorks() {
   return (
     <section id="how-it-works" className="relative py-24">
-      <div className="mx-auto mb-4 max-w-6xl px-6">
-        <Reveal className="flex">
-          <Eyebrow>HOW IT WORKS</Eyebrow>
-        </Reveal>
-        <Reveal delay={0.05}>
-          <h2 className="mt-5 max-w-2xl text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
-            From your screenshots to a running test suite.
-          </h2>
-        </Reveal>
-      </div>
-
-      <HorizontalScrollSection trackVh={320} xRange={['2%', '-72%']} className="mt-8">
+      <HorizontalScrollSection
+        trackVh={380}
+        mobileBreakpoint={0}
+        header={
+          <div className="mx-auto mb-10 max-w-6xl px-6">
+            <Reveal className="flex">
+              <Eyebrow>HOW IT WORKS</Eyebrow>
+            </Reveal>
+            <Reveal delay={0.05}>
+              <h2 className="mt-5 max-w-2xl text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
+                Just describe it — like you&apos;d brief your QA.
+              </h2>
+            </Reveal>
+            <Reveal delay={0.1}>
+              <p className="mt-5 max-w-xl text-base leading-relaxed text-white/55 sm:text-lg">
+                And let it do the rest.
+              </p>
+            </Reveal>
+          </div>
+        }
+      >
         {STEPS.map((s) => (
           <Panel key={s.num} step={s} />
         ))}

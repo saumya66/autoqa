@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import Eyebrow from './Eyebrow';
-import { EyeIcon, SparkIcon, QuestionIcon, GavelIcon, CheckIcon } from './Icons';
+import { EyeIcon, SparkIcon, QuestionIcon, GavelIcon, CheckIcon, GlobeIcon, MonitorIcon, PhoneIcon } from './Icons';
 import AppWindow from './AppWindow';
 
 // ── Per-pillar mockups ──────────────────────────────────────────────────────
@@ -68,20 +68,83 @@ function ThinkMock() {
 
 function AskMock() {
   return (
-    <AppWindow breadcrumb="clariti › run #428 › paused">
+    <AppWindow breadcrumb="clariti › run #428 › interrupted">
       <div className="p-5">
-        <div className="flex items-center gap-2 text-amber-300">
-          <span className="text-base">⏸</span>
-          <span className="text-sm font-semibold">Clariti is paused</span>
+        <div className="flex items-center gap-2 text-emerald-300">
+          <span className="text-sm">▶</span>
+          <span className="text-sm font-semibold">Running</span>
           <span className="ml-auto font-mono text-[11px] text-white/35">step 6 of 12</span>
         </div>
-        <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-white/70">
-          I see a dialog I didn&apos;t expect: &ldquo;Choose your sign-in method&rdquo;. Which should
-          I pick?
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-sm text-white/60">
+          <span className="text-violet-400">›</span>
+          Adding item to cart → heading to checkout…
         </div>
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-violet-400/25 bg-violet-500/5 px-3 py-2">
-          <span className="font-mono text-[12px] text-white/70">Use &ldquo;Sign in with Google&rdquo;</span>
-          <span className="ml-auto font-mono text-[10px] text-white/30">↵ continue</span>
+
+        <div className="my-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-amber-300/80">
+          <span className="h-px flex-1 bg-amber-300/20" />
+          you interrupt
+          <span className="h-px flex-1 bg-amber-300/20" />
+        </div>
+
+        <div className="rounded-lg border border-violet-400/25 bg-violet-500/5 px-3 py-2.5">
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-500/80 font-mono text-[9px] font-semibold text-white">
+              Y
+            </span>
+            <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-violet-300">
+              You
+            </span>
+          </div>
+          <span className="text-sm text-white/80">
+            Wait — apply the SAVE20 coupon before you go to payment.
+          </span>
+        </div>
+        <div className="mt-3 flex items-center gap-2 text-sm text-white/70">
+          <span className="text-violet-400">›</span>
+          Got it — adding the coupon, then continuing checkout.
+          <span className="ml-auto font-mono text-[10px] text-white/30">↵ resuming</span>
+        </div>
+      </div>
+    </AppWindow>
+  );
+}
+
+function AnywhereMock() {
+  const surfaces = [
+    { label: 'Web app', Icon: GlobeIcon },
+    { label: 'Desktop app', Icon: MonitorIcon },
+    { label: 'Android / iOS', Icon: PhoneIcon },
+  ];
+  return (
+    <AppWindow breadcrumb="clariti › surfaces › one agent">
+      <div className="p-5">
+        <div className="grid grid-cols-3 gap-2.5">
+          {surfaces.map((s) => {
+            const Icon = s.Icon;
+            return (
+              <div
+                key={s.label}
+                className="flex flex-col items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] py-3"
+              >
+                <Icon className="h-5 w-5 text-white/70" />
+                <span className="text-[11px] text-white/50">{s.label}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex justify-center py-1" aria-hidden="true">
+          <svg width="180" height="34" viewBox="0 0 180 34" fill="none">
+            <path
+              d="M30 0 V12 Q30 18 90 18 M90 0 V18 M150 0 V12 Q150 18 90 18 M90 18 V34"
+              stroke="rgba(168,85,247,0.35)"
+              strokeWidth="1.5"
+            />
+          </svg>
+        </div>
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-violet-400/25 bg-violet-500/10 px-3 py-2.5">
+          <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-violet-400" />
+          <span className="text-sm font-semibold text-white">Clariti runs on</span>
+          <span className="ml-1 font-mono text-[10px] text-white/40">every surface</span>
         </div>
       </div>
     </AppWindow>
@@ -137,30 +200,38 @@ const PILLARS = [
     Icon: SparkIcon,
     label: 'IT THINKS',
     title: 'It figures out the next step on its own.',
-    body: 'No script to maintain. Clariti looks at where it is, decides what to do next, and adapts as your product changes. Redesign a page or rename a button — it just keeps going.',
+    body: 'No code to maintain. Clariti looks at where it is, decides what to do next as per the context it has, and thus it adapts even as your product changes. Redesign a page or rename a button — it just keeps going, unlike code tests.',
     Mock: ThinkMock,
   },
   {
     tag: 'Human-in-the-loop',
     Icon: QuestionIcon,
     label: 'IT ASKS',
-    title: "When it's unsure, it checks with you.",
-    body: 'No silent failures, no guessing. If something\u2019s ambiguous, Clariti pauses and asks — in plain English. You answer once, it remembers. You stay in control without babysitting every run.',
+    title: 'You stay in the loop, and always in control.',
+    body: 'No silent failures, no guessing. When something\u2019s ambiguous, Clariti pauses and asks in plain English. And you can jump in anytime — interrupt a run, correct a step, and guide it in your own words, then let it carry on.',
     Mock: AskMock,
+  },
+  {
+    tag: 'Platform-agnostic',
+    Icon: GlobeIcon,
+    label: 'IT WORKS ANYWHERE',
+    title: 'It runs anywhere your product does.',
+    body: 'Because Clariti works from what\u2019s on the screen, it isn\u2019t locked to the browser. Your web app, your desktop app, the mobile simulators your team already runs — Clariti tests them all. No separate tools, no separate scripts, no separate QA setup per platform.',
+    Mock: AnywhereMock,
   },
   {
     tag: 'Verdict',
     Icon: GavelIcon,
     label: 'IT JUDGES',
     title: 'It tells you what passed, what broke, and why.',
-    body: 'Clariti decides whether each flow actually worked and explains its reasoning. Every run is recorded step by step, so you can see exactly what it did — and replay it anytime.',
+    body: 'Clariti decides whether each flow actually worked and explains its reasoning. Every run is recorded step by step and store in cloud, so you can see exactly what it did anytime.',
     Mock: JudgeMock,
   },
 ];
 
 export default function Pillars() {
   return (
-    <section id="product" className="relative mx-auto max-w-6xl px-6 py-28 sm:py-32">
+    <section id="why-it-works" className="relative mx-auto max-w-6xl px-6 py-28 sm:py-32">
       <div className="text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -176,7 +247,7 @@ export default function Pillars() {
         </motion.div>
       </div>
 
-      <div className="mt-20 space-y-24 sm:space-y-28">
+      <div className="mt-14 space-y-16 sm:space-y-24 lg:space-y-28">
         {PILLARS.map((p, i) => {
           const reversed = i % 2 === 1;
           const Icon = p.Icon;
@@ -188,8 +259,8 @@ export default function Pillars() {
             >
               {/* Copy */}
               <motion.div
-                initial={{ opacity: 0, x: reversed ? 40 : -40 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '0px 0px -15% 0px' }}
                 transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
                 className={reversed ? 'lg:order-2' : ''}
@@ -210,8 +281,8 @@ export default function Pillars() {
 
               {/* Mockup */}
               <motion.div
-                initial={{ opacity: 0, x: reversed ? -40 : 40 }}
-                whileInView={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '0px 0px -15% 0px' }}
                 transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
                 className={reversed ? 'lg:order-1' : ''}
