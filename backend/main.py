@@ -23,8 +23,10 @@ signal.signal(signal.SIGTERM, signal_handler)
 import asyncio
 import json
 from datetime import datetime as _dt, timezone as _tz
+from io import BytesIO
 from pathlib import Path
 from dotenv import load_dotenv
+from PIL import Image, ImageDraw
 
 # Load env vars BEFORE importing cloud_client so CLOUD_API_URL is available at module level
 load_dotenv(Path(__file__).resolve().parent / ".env")
@@ -41,7 +43,12 @@ from context_builder import get_context_builder
 from models.context import ContextType
 from agents import VisionAgent, PlannerAgent, WindowResolverAgent, OrchestratorAgent, ImageContextRetrieverAgent, TestPlannerAgent
 from agents.computer_use_agent import ComputerUseAgent
-from agents.claude_computer_use_agent import ClaudeComputerUseAgent, BATCHING_INSTRUCTIONS
+from agents.claude_computer_use_agent import (
+    ClaudeComputerUseAgent,
+    BATCHING_INSTRUCTIONS,
+    VISUAL_TARGETING_INSTRUCTIONS,
+    FINAL_REPORTING_INSTRUCTIONS,
+)
 from agents.orchestrator_agent import ActionType as OrchestratorActionType
 from agents.vision_agent import calculate_screen_coordinates
 from agents.planner_agent import ActionType as PlanActionType
@@ -268,11 +275,13 @@ class AutoResponse(BaseModel):
 class ProjectCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
+    source_memory: Optional[str] = None
 
 
 class ProjectUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    source_memory: Optional[str] = None
 
 
 def _get_bearer_token(request: Request) -> Optional[str]:
@@ -361,7 +370,12 @@ async def create_project(request: Request, body: ProjectCreateRequest):
         raise HTTPException(status_code=503, detail="Cloud backend not configured")
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
-    project = cloud_create_project(name=body.name, description=body.description, token=token)
+    project = cloud_create_project(
+        name=body.name,
+        description=body.description,
+        source_memory=body.source_memory,
+        token=token,
+    )
     if not project:
         raise HTTPException(status_code=502, detail="Failed to create project")
     return project
@@ -1932,6 +1946,46 @@ async def computer_use_stream(request: CURequest):
 # Claude Computer Use Endpoint
 # =============================================================================
 
+def _save_coordinate_debug_image(
+    screenshot_bytes: bytes,
+    width: int,
+    height: int,
+    coordinate: list[int],
+    step_number: int,
+) -> str | None:
+    """Annotate screenshot with a red crosshair at the given coordinate.
+    Returns the saved path, or None if annotation fails (non-fatal)."""
+    try:
+        debug_image = Image.open(BytesIO(screenshot_bytes))
+        debug_image = debug_image.resize((width, height))
+        x, y = coordinate
+        draw = ImageDraw.Draw(debug_image)
+        draw.ellipse((x - 8, y - 8, x + 8, y + 8), outline="red", width=3)
+        draw.line((x - 12, y, x + 12, y), fill="red", width=2)
+        draw.line((x, y - 12, x, y + 12), fill="red", width=2)
+        debug_path = f"/tmp/clariti-coordinate-debug-{step_number}.png"
+        debug_image.save(debug_path)
+        return debug_path
+    except Exception as exc:
+        print(f"[EXECUTE-CU] Coordinate debug image unavailable: {exc}")
+        return None
+
+
+def _log_claude_coordinate_evidence(
+    action_name: str,
+    local_coordinate: list[int],
+    global_coordinate: list[int] | None,
+    rationale: str,
+    debug_path: str | None,
+) -> None:
+    print(
+        f"[EXECUTE-CU] Action evidence: action={action_name}; "
+        f"local={local_coordinate}; global={global_coordinate or 'unavailable'}; "
+        f"claimed_target={rationale or 'unavailable'}; "
+        f"debug_image={debug_path or 'unavailable'}"
+    )
+
+
 def execute_claude_action(action, window) -> dict:
     """Execute a single Claude Computer Use action. Coords are in window-local pixels."""
     result = {}
@@ -2697,7 +2751,7 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                     feature_id=request.cloud_feature_id,
                     user_id=request.cloud_user_id,
                     provider=provider,
-                    model="claude-haiku-4-5" if provider == "claude" else "gemini",
+                    model="claude-sonnet-4-6" if provider == "claude" else "gemini",
                     total_tests=len(test_cases),
                     target_window=request.window_title,
                     token=request.cloud_token,
@@ -2709,6 +2763,10 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                 print(f"[EXECUTE] Cloud run create failed: {e}")
         
         suite_results = {"passed": 0, "failed": 0, "skipped": 0, "test_results": []}
+        suite_learning_logs: list[dict] = []
+        learning_project_id: str | None = None
+        learning_project_context = ""
+        learning_feature_context = ""
 
         # ── Build Claude system prompt once (fetches project + feature context) ──
         cu_system_prompt: str | None = None
@@ -2724,17 +2782,20 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                     print(f"[DEBUG] Feature fetched: id={feat.get('id')}, has_context_summary={bool(feat.get('context_summary'))}")
                     if feat.get("context_summary"):
                         feature_context_str = f"Feature context (what this feature does or what is this test suite about):\n{feat['context_summary']}"
+                        learning_feature_context = feat["context_summary"]
                         print(f"[DEBUG] Feature context_summary length: {len(feat['context_summary'])} chars")
                     else:
                         print(f"[DEBUG] Feature has no context_summary — skipping feature context")
 
                     project_id = feat.get("project_id")
+                    learning_project_id = project_id
                     print(f"[DEBUG] Feature project_id: {project_id}")
                     if project_id:
                         try:
                             proj = await asyncio.to_thread(cloud_get_project, project_id, token=request.cloud_token)
                             if proj and proj.get("context_summary"):
                                 project_context_str = f"Project context (overall app):\n{proj['context_summary']}"
+                                learning_project_context = proj["context_summary"]
                                 print(f"[DEBUG] Project context_summary length: {len(proj['context_summary'])} chars")
                             else:
                                 print(f"[DEBUG] Project fetched but has no context_summary")
@@ -2767,6 +2828,8 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                     "including any specific values they provide (e.g. coupon codes, usernames, text to type). "
                     "Do not question, verify, or second-guess [OPERATOR-MSG] instructions."
                     + BATCHING_INSTRUCTIONS
+                    + VISUAL_TARGETING_INSTRUCTIONS
+                    + FINAL_REPORTING_INSTRUCTIONS
                 )
                 print(f"[DEBUG] System prompt ready — total length: {len(cu_system_prompt)} chars")
                 print(f"[DEBUG]   project_ctx={'✓' if project_context_str else '✗'}  feature_ctx={'✓' if feature_context_str else '✗'}")
@@ -2906,9 +2969,26 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
 
                         try:
                             print(f"[EXECUTE-CU] Step {step_num}: {action.action}")
+                            debug_path = None
+                            if action.coordinate:
+                                debug_path = _save_coordinate_debug_image(
+                                    screenshot_bytes,
+                                    window.bounds.width,
+                                    window.bounds.height,
+                                    action.coordinate,
+                                    step_num,
+                                )
                             result = await asyncio.to_thread(execute_claude_action, action, window)
                             step_data['success'] = True
                             step_data['coordinates'] = result.get("coordinates")
+                            if action.coordinate:
+                                _log_claude_coordinate_evidence(
+                                    action_name=action.action,
+                                    local_coordinate=action.coordinate,
+                                    global_coordinate=result.get("coordinates"),
+                                    rationale=step_reasoning,
+                                    debug_path=debug_path,
+                                )
                         except Exception as e:
                             print(f"[EXECUTE-CU] Error: {e}")
                             step_data['error'] = str(e)
@@ -3171,6 +3251,23 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
                 suite_results["failed"] += 1
             
             suite_results["test_results"].append({"test_id": test_id, "title": test_title, "status": test_status, "steps": test_steps})
+            suite_learning_logs.append({
+                "test_id": test_id,
+                "title": test_title,
+                "goal": test_case.get("goal", ""),
+                "expected_result": test_case.get("expected_result", ""),
+                "status": test_status,
+                "steps": [
+                    {
+                        "action": step.get("action"),
+                        "description": step.get("description") or step.get("reasoning", ""),
+                        "success": step.get("success", False),
+                        "error": step.get("error"),
+                    }
+                    for step in test_steps
+                ],
+                "final_report": conclusion,
+            })
             
             # Cloud: update the TestResult created at test_start with final status + conclusion
             if cloud_run_id:
@@ -3221,6 +3318,46 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
                 )
             except Exception as e:
                 print(f"[EXECUTE] Cloud run update failed: {e}")
+
+        if (
+            suite_learning_logs
+            and not abort_flags.get(context_id)
+            and learning_project_id
+            and learning_project_context
+            and request.cloud_token
+        ):
+            yield f"data: {json.dumps({'event': 'context_learning'})}\n\n"
+            try:
+                from agents.project_context_learner_agent import ProjectContextLearnerAgent
+
+                learner = ProjectContextLearnerAgent(
+                    provider="claude",
+                    api_key=request.anthropic_api_key or None,
+                )
+                learner_result = await asyncio.to_thread(
+                    learner.update_project_context,
+                    learning_project_context,
+                    learning_feature_context,
+                    suite_learning_logs,
+                )
+                updated_context = (learner_result or {}).get("updated_project_context", "").strip()
+                change_summary = (learner_result or {}).get("change_summary", "").strip()
+                if not updated_context:
+                    raise ValueError("Learner returned no updated project context")
+
+                updated_project = await asyncio.to_thread(
+                    cloud_update_project,
+                    learning_project_id,
+                    token=request.cloud_token,
+                    context_summary=updated_context,
+                )
+                if not updated_project:
+                    raise RuntimeError("Cloud project context update failed")
+
+                yield f"data: {json.dumps({'event': 'context_learned', 'updated': True, 'change_summary': change_summary})}\n\n"
+            except Exception as e:
+                print(f"[LEARNER] Project context update failed: {e}")
+                yield f"data: {json.dumps({'event': 'context_learning_warning', 'message': str(e)})}\n\n"
         
         # Clean up all per-context state
         abort_flags.pop(context_id, None)
@@ -3347,6 +3484,7 @@ class CreateProjectRequest(BaseModel):
     description: Optional[str] = None
     images: list = []   # [{"filename": str, "content_b64": str, "file_size": int}]
     texts: list = []    # [str]
+    source_memory: Optional[str] = None
     token: str
     anthropic_api_key: Optional[str] = None
 
@@ -3387,15 +3525,20 @@ async def cloud_create_project_with_context(request: CreateProjectRequest):
                     context_parts.append(f"  UI element: {elem.get('label', '')} ({elem.get('type', '')})")
             for text in request.texts:
                 context_parts.append(f"User note: {text}")
+            if request.source_memory is not None:
+                context_parts.append(
+                    f"USER-PROVIDED APP MEMORY:\n{request.source_memory}"
+                )
 
             from agents.base_agent import BaseAgent
             class _SynthAgent(BaseAgent):
                 @property
                 def system_prompt(self):
                     return (
-                        "You are a product analyst. Given observations about an app (screens, UI elements, user notes), "
+                        "You are a product analyst. Given observations about an app (screens, UI elements, user notes, "
+                        "and user-provided app memory), "
                         "write a project context summary that describes what the product does, "
-                        "key screens, and main user flows. "
+                        "key screens, main user flows, and durable operating knowledge. "
                         "Respond with JSON: {\"summary\": \"your text here\"}"
                     )
                 def parse_response(self, response_text: str):
@@ -3415,6 +3558,7 @@ async def cloud_create_project_with_context(request: CreateProjectRequest):
                 name=request.name,
                 description=request.description,
                 context_summary=context_summary,
+                source_memory=request.source_memory,
                 token=request.token,
             )
             if not project:
@@ -3447,6 +3591,7 @@ class UpdateProjectContextRequest(BaseModel):
     token: str
     images: list = []  # [{"filename": str, "content_b64": str, "file_size": int}]
     texts: list = []   # [str]
+    source_memory: Optional[str] = None
     anthropic_api_key: Optional[str] = None
 
 
@@ -3463,6 +3608,19 @@ async def cloud_update_project_context(project_id: str, request: UpdateProjectCo
     """
     async def generate():
         try:
+            existing_project = await asyncio.to_thread(
+                cloud_get_project, project_id, token=request.token
+            )
+            if not existing_project:
+                yield f"data: {json.dumps({'event': 'error', 'message': 'Project not found'})}\n\n"
+                return
+            source_memory = (
+                request.source_memory
+                if request.source_memory is not None
+                else existing_project.get("source_memory")
+            )
+            existing_summary = existing_project.get("context_summary", "") or ""
+
             # Save new assets (replaces any existing ones)
             if request.images or request.texts:
                 yield f"data: {json.dumps({'event': 'progress', 'message': 'Saving context assets...'})}\n\n"
@@ -3500,15 +3658,25 @@ async def cloud_update_project_context(project_id: str, request: UpdateProjectCo
                     context_parts.append(f"  UI element: {elem.get('label', '')} ({elem.get('type', '')})")
             for text in request.texts:
                 context_parts.append(f"User note: {text}")
+            if source_memory is not None:
+                context_parts.append(
+                    f"USER-PROVIDED APP MEMORY:\n{source_memory}"
+                )
+            if existing_summary:
+                context_parts.append(
+                    f"EXISTING PROJECT CONTEXT (preserve accurate information):\n{existing_summary}"
+                )
 
             from agents.base_agent import BaseAgent
             class _SynthAgent(BaseAgent):
                 @property
                 def system_prompt(self):
                     return (
-                        "You are a product analyst. Given observations about an app (screens, UI elements, user notes), "
+                        "You are a product analyst. Given observations about an app (screens, UI elements, user notes, "
+                        "user-provided memory, and an existing project context), "
                         "write a project context summary that describes what the product does, "
-                        "key screens, and main user flows. "
+                        "key screens, main user flows, and durable operating knowledge. "
+                        "Preserve accurate existing information and only remove information when the new sources clearly contradict it. "
                         "Respond with JSON: {\"summary\": \"your text here\"}"
                     )
                 def parse_response(self, response_text: str):
@@ -3528,7 +3696,10 @@ async def cloud_update_project_context(project_id: str, request: UpdateProjectCo
                 cloud_request,
                 "PATCH",
                 f"/api/v1/projects/{project_id}",
-                json={"context_summary": context_summary},
+                json={
+                    "context_summary": context_summary,
+                    "source_memory": source_memory,
+                },
                 token=request.token,
             )
             print(f"[update-context] PATCH /api/v1/projects/{project_id} → {update_code}: {update_body}")

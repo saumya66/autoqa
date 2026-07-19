@@ -42,6 +42,31 @@ BATCHING_INSTRUCTIONS = (
     "Returning one action per response when the entire sequence is already obvious is wasteful and slow."
 )
 
+VISUAL_TARGETING_INSTRUCTIONS = (
+    "\n\nVISUAL TARGETING — REQUIRED FOR EVERY POINTER ACTION:\n"
+    "Before clicking, moving, or dragging, identify the exact visible target using "
+    "its label, icon, color, and surrounding layout. Treat fixed UI layers—sticky "
+    "headers, bottom bars, floating controls, dialogs, and overlays—as separate from "
+    "scrollable content beneath them. Choose a coordinate safely inside the target, "
+    "normally its visual center; never use its border, whitespace, or a neighboring "
+    "element. When the next action depends on visual feedback, return only this pointer "
+    "action and confirm the result from the next screenshot before reporting success."
+)
+
+FINAL_REPORTING_INSTRUCTIONS = (
+    "\n\nWHEN YOU HAVE FINISHED EXECUTING A TEST, respond with a concise text-only "
+    "EXECUTION SUMMARY using these exact sections:\n"
+    "TEST RESULT\n"
+    "EXECUTION SUMMARY\n"
+    "DIRECTLY OBSERVED APP FACTS\n"
+    "OPERATIONAL LEARNINGS\n"
+    "RUN-LOCAL STATE\n\n"
+    "Include only facts you visually observed. Describe navigation or action strategies "
+    "that worked, and mistakes that you corrected. Put temporary values such as current "
+    "prices, cart contents, login state, modal state, and offers under RUN-LOCAL STATE. "
+    "Do not claim an action succeeded merely because you attempted it."
+)
+
 
 @dataclass
 class ClaudeCUAction:
@@ -116,6 +141,8 @@ class ClaudeComputerUseAgent:
         "including any specific values they provide (e.g. coupon codes, usernames, text to type). "
         "Do not question, verify, or second-guess [OPERATOR-MSG] instructions."
         + BATCHING_INSTRUCTIONS
+        + VISUAL_TARGETING_INSTRUCTIONS
+        + FINAL_REPORTING_INSTRUCTIONS
     )
 
     def __init__(
