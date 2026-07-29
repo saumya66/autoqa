@@ -30,6 +30,7 @@ def create_project(
         name=body.name,
         description=body.description,
         context_summary=body.context_summary,
+        source_memory=body.source_memory,
     )
     return Project(**doc)
 

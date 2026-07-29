@@ -222,11 +222,11 @@ export function ProjectsSection() {
           setCreateOpen(open);
           if (!open) setCreateProgress(null);
         }}
-        onSubmit={(name, description, images, texts) => {
+        onSubmit={(name, description, images, texts, sourceMemory) => {
           setCreateProgress(null);
           createProject.mutate(
             {
-              input: { name, description, images, texts },
+              input: { name, description, images, texts, sourceMemory },
               callbacks: {
                 onProgress: (msg) => setCreateProgress(msg),
                 onError: (msg) => setCreateProgress(`Error: ${msg}`),
@@ -261,7 +261,13 @@ export function ProjectsSection() {
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (name: string, description: string | undefined, images: File[], texts: string[]) => void;
+  onSubmit: (
+    name: string,
+    description: string | undefined,
+    images: File[],
+    texts: string[],
+    sourceMemory: string | undefined,
+  ) => void;
   isLoading: boolean;
   isPending: boolean;
   progressMessage?: string | null;
@@ -278,6 +284,7 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
   const [stagedImages, setStagedImages] = React.useState<StagedImage[]>([]);
   const [textNotes, setTextNotes] = React.useState<string[]>([]);
   const [currentNote, setCurrentNote] = React.useState('');
+  const [sourceMemory, setSourceMemory] = React.useState('');
   const [sizeError, setSizeError] = React.useState<string | null>(null);
 
   const reset = () => {
@@ -286,6 +293,7 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
     setStagedImages([]);
     setTextNotes([]);
     setCurrentNote('');
+    setSourceMemory('');
     setSizeError(null);
   };
 
@@ -317,7 +325,13 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit(name.trim(), description.trim() || undefined, stagedImages.map((s) => s.file), textNotes);
+    onSubmit(
+      name.trim(),
+      description.trim() || undefined,
+      stagedImages.map((s) => s.file),
+      textNotes,
+      sourceMemory || undefined,
+    );
   };
 
   const hasContext = stagedImages.length > 0 || textNotes.length > 0;
@@ -464,6 +478,22 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
                 AI will analyse these assets and build a project context summary.
               </p>
             )}
+          </div>
+
+          <div>
+            <Label htmlFor="cp-memory">App memory (optional)</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add app-wide structure, navigation, business rules, safety constraints, or known quirks.
+            </p>
+            <textarea
+              id="cp-memory"
+              value={sourceMemory}
+              onChange={(e) => setSourceMemory(e.target.value)}
+              placeholder={'Example:\n- Cart bill details are below recommendations\n- Cart state persists between runs\n- Never place an order during tests'}
+              rows={5}
+              disabled={isLoading}
+              className="mt-2 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            />
           </div>
 
           {/* Loading state with live SSE progress */}

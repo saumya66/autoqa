@@ -77,6 +77,7 @@ interface ProjectContextModalProps {
   projectId: string;
   existingImages: CloudContextItem[];
   existingTexts: CloudContextItem[];
+  sourceMemory?: string | null;
   onSuccess: () => void;
 }
 
@@ -86,11 +87,13 @@ function ProjectContextModal({
   projectId,
   existingImages,
   existingTexts,
+  sourceMemory,
   onSuccess,
 }: ProjectContextModalProps) {
   const updateContextMutation = useUpdateProjectContext(projectId);
   const [images, setImages] = React.useState<StagedImage[]>([]);
   const [texts, setTexts] = React.useState<string[]>(['']);
+  const [memory, setMemory] = React.useState('');
   const [isDragging, setIsDragging] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [progressMessages, setProgressMessages] = React.useState<string[]>([]);
@@ -120,7 +123,8 @@ function ProjectContextModal({
       .filter((item) => item.content)
       .map((item) => item.content!);
     setTexts(prefilledTexts.length > 0 ? prefilledTexts : ['']);
-  }, [open, existingImages, existingTexts]);
+    setMemory(sourceMemory ?? '');
+  }, [open, existingImages, existingTexts, sourceMemory]);
 
   function addFiles(files: File[]) {
     const valid = files.filter((f) => {
@@ -181,6 +185,7 @@ function ProjectContextModal({
       await updateContextMutation.mutateAsync({
         images: imageFiles,
         texts: textValues,
+        sourceMemory: memory,
         callbacks: {
           onProgress: (msg) => setProgressMessages((prev) => [...prev, msg]),
           onDone: () => {
@@ -199,7 +204,7 @@ function ProjectContextModal({
     }
   }
 
-  const hasContent = images.length > 0 || texts.some((t) => t.trim().length > 0);
+  const hasContent = images.length > 0 || texts.some((t) => t.trim().length > 0) || memory.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -274,6 +279,24 @@ function ProjectContextModal({
                 ))}
               </div>
             )}
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <BookText className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">App Memory</span>
+            </div>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Durable app knowledge such as navigation, business rules, safety constraints, and known quirks.
+            </p>
+            <textarea
+              value={memory}
+              onChange={(e) => setMemory(e.target.value)}
+              placeholder={'Example:\n- Cart bill details appear below recommendations\n- Cart state persists between runs\n- Never place an order during tests'}
+              rows={5}
+              disabled={isSubmitting}
+              className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            />
           </div>
 
           {/* Text notes */}
@@ -490,6 +513,18 @@ function ProjectContextPage() {
             )}
           </div>
 
+          {project.source_memory && (
+            <div className="flex flex-col rounded-2xl border border-border bg-card p-5">
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-500">APP MEMORY</span>
+              </div>
+              <h2 className="mb-3 text-base font-semibold text-foreground">What you told Clariti</h2>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground line-clamp-12">
+                {project.source_memory}
+              </p>
+            </div>
+          )}
+
           {/* ── Upload / Update CTA ── */}
           <div
             className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl bg-violet-600 p-6 transition-opacity hover:opacity-90"
@@ -600,6 +635,7 @@ function ProjectContextPage() {
         projectId={projectId}
         existingImages={existingImages}
         existingTexts={existingTexts}
+        sourceMemory={project.source_memory}
         onSuccess={handleContextSuccess}
       />
     </div>

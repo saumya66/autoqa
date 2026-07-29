@@ -73,10 +73,18 @@ def auth_me(token: str) -> Optional[dict]:
 
 
 # ─── Projects ───────────────────────────────────────────────────────────────
-def create_project(name: str, description: Optional[str] = None, context_summary: Optional[str] = None, token: Optional[str] = None) -> Optional[dict]:
+def create_project(
+    name: str,
+    description: Optional[str] = None,
+    context_summary: Optional[str] = None,
+    source_memory: Optional[str] = None,
+    token: Optional[str] = None,
+) -> Optional[dict]:
     payload = {"name": name, "description": description}
     if context_summary:
         payload["context_summary"] = context_summary
+    if source_memory is not None:
+        payload["source_memory"] = source_memory
     code, data = _request("POST", "/api/v1/projects/", json=payload, token=token)
     return data if code in (200, 201) else None
 

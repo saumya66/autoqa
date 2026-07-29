@@ -245,6 +245,8 @@ function ExecutePage() {
     isPaused,
     isPausePending,
     isAbortPending,
+    projectLearningStatus,
+    projectLearningMessage,
     setInitialTests,
     startExecution,
     submitGuidance,
@@ -485,6 +487,19 @@ function ExecutePage() {
                 <span className="text-muted-foreground">{suiteResult.skipped} skipped</span>
               )}
             </div>
+          </div>
+        )}
+
+        {projectLearningStatus !== 'idle' && (
+          <div className={cn(
+            'mx-3 mt-3 rounded-xl border px-4 py-3 text-xs',
+            projectLearningStatus === 'warning'
+              ? 'border-amber-500/30 bg-amber-500/10 text-amber-700'
+              : 'border-primary/20 bg-primary/5 text-primary'
+          )}>
+            {projectLearningStatus === 'learning'
+              ? 'Updating project knowledge...'
+              : projectLearningMessage}
           </div>
         )}
 

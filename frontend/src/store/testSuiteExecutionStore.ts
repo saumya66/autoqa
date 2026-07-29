@@ -13,6 +13,8 @@ import {
   type PausedEvent,
   type TestCompleteEvent,
   type SuiteCompleteEvent,
+  type ContextLearnedEvent,
+  type ContextLearningWarningEvent,
   type StepRecord,
   type CloudTestRunDetail,
 } from '../api/client';
@@ -90,6 +92,8 @@ interface TestSuiteExecutionState {
   // Pending acknowledgement — true from the moment button is pressed until backend confirms
   isPausePending: boolean;
   isAbortPending: boolean;
+  projectLearningStatus: 'idle' | 'learning' | 'updated' | 'warning';
+  projectLearningMessage: string | null;
 
   setInitialTests: (tests: CloudTestCase[]) => void;
   startExecution: (params: {
@@ -117,6 +121,7 @@ interface TestSuiteExecutionState {
 
 // AbortController lives outside Zustand state (non-serialisable)
 let _abortController: AbortController | null = null;
+let _executionId: string | null = null;
 
 export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, get) => ({
   status: 'idle',
@@ -133,6 +138,8 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
   isPaused: false,
   isPausePending: false,
   isAbortPending: false,
+  projectLearningStatus: 'idle',
+  projectLearningMessage: null,
 
   setInitialTests: (testCases: CloudTestCase[]) => {
     set({
@@ -149,8 +156,14 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
 
   startExecution: async ({ featureId, featureName, windowTitle, provider, token, userId }) => {
     const existingTests = get().tests;
+    const executionId = globalThis.crypto.randomUUID();
+
+    // Stop reading callbacks from any superseded stream. The backend separately
+    // marks the previous execution as superseded when this run registers.
+    _abortController?.abort();
     // Create a fresh AbortController for this run
     _abortController = new AbortController();
+    _executionId = executionId;
 
     set({
       status: 'running',
@@ -165,6 +178,8 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
       error: null,
       guidanceNeeded: null,
       isPaused: false,
+      projectLearningStatus: 'idle',
+      projectLearningMessage: null,
     });
 
     try {
@@ -172,6 +187,7 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
         featureId,
         {
           window_title: windowTitle,
+          execution_id: executionId,
           provider,
           cloud_feature_id: featureId,
           cloud_user_id: userId,
@@ -312,6 +328,21 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
             }));
           },
 
+          onContextLearning: () => {
+            set({ projectLearningStatus: 'learning', projectLearningMessage: 'Updating project knowledge...' });
+          },
+
+          onContextLearned: (data: ContextLearnedEvent) => {
+            set({
+              projectLearningStatus: 'updated',
+              projectLearningMessage: data.change_summary || 'Project knowledge updated.',
+            });
+          },
+
+          onContextLearningWarning: (data: ContextLearningWarningEvent) => {
+            set({ projectLearningStatus: 'warning', projectLearningMessage: data.message });
+          },
+
           onAborted: () => {
             set({ status: 'aborted', isAbortPending: false, currentTestId: null, thinking: '', guidanceNeeded: null, isPaused: false });
           },
@@ -331,6 +362,12 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
         guidanceNeeded: null,
         isPaused: false,
       });
+    } finally {
+      // An older stream must never clear the controller/ID of a newer run.
+      if (_executionId === executionId) {
+        _abortController = null;
+        _executionId = null;
+      }
     }
   },
 
@@ -371,18 +408,21 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
 
   abortExecution: async () => {
     const { featureId } = get();
+    const executionId = _executionId;
     // Immediately acknowledge — UI updates right away
     set({ isAbortPending: true });
     // Cancel the SSE fetch immediately so the frontend stops reading
     _abortController?.abort();
     _abortController = null;
     // Tell the backend to stop the loop
-    if (featureId) {
+    if (featureId && executionId) {
       try {
-        await apiAbortExecution(featureId);
+        await apiAbortExecution(featureId, executionId);
       } catch (err) {
         console.error('Failed to send abort signal to backend:', err);
       }
+    } else {
+      console.warn('No active execution ID; abort request was not sent');
     }
     // Immediately mark the in-progress test as skipped so its loader stops
     set((state) => ({
@@ -458,6 +498,8 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
       isPaused: false,
       isPausePending: false,
       isAbortPending: false,
+      projectLearningStatus: 'idle',
+      projectLearningMessage: null,
     });
   },
 
@@ -477,5 +519,7 @@ export const useTestSuiteExecutionStore = create<TestSuiteExecutionState>((set, 
       isPaused: false,
       isPausePending: false,
       isAbortPending: false,
+      projectLearningStatus: 'idle',
+      projectLearningMessage: null,
     }),
 }));

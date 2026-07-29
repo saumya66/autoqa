@@ -8,6 +8,7 @@ Coordinates are in actual pixels (no normalization).
 
 import os
 import base64
+import math
 from io import BytesIO
 from dataclasses import dataclass, field
 from typing import Optional
@@ -19,6 +20,8 @@ from PIL import Image
 DEFAULT_MODEL = "claude-haiku-4-5"
 TOOL_VERSION = "computer_20250124"
 BETA_FLAG = "computer-use-2025-01-24"
+MAX_SCREENSHOT_LONG_EDGE = 1568
+MAX_SCREENSHOT_PIXELS = 1_150_000
 
 BATCHING_INSTRUCTIONS = (
     "\n\nMULTI-ACTION BATCHING — CRITICAL FOR PERFORMANCE:\n"
@@ -48,13 +51,16 @@ class ClaudeCUAction:
     """A single action from Claude's Computer Use."""
     tool_use_id: str
     action: str
+    model_coordinate: Optional[list[int]] = None
     coordinate: Optional[list[int]] = None
     text: Optional[str] = None
     keys: Optional[list[str]] = None
     scroll_direction: Optional[str] = None
     scroll_amount: Optional[int] = None
     button: Optional[str] = None
+    model_start_coordinate: Optional[list[int]] = None
     start_coordinate: Optional[list[int]] = None
+    model_end_coordinate: Optional[list[int]] = None
     end_coordinate: Optional[list[int]] = None
     duration: Optional[float] = None
 
@@ -68,13 +74,22 @@ class ClaudeCUResponse:
     is_done: bool = False
 
 
+def calculate_screenshot_dimensions(width: int, height: int) -> tuple[int, int]:
+    """Return the largest API-safe screenshot size while preserving aspect ratio."""
+    long_edge_scale = MAX_SCREENSHOT_LONG_EDGE / max(width, height)
+    total_pixels_scale = math.sqrt(
+        MAX_SCREENSHOT_PIXELS / (width * height)
+    )
+    scale = min(1.0, long_edge_scale, total_pixels_scale)
+    return max(1, int(width * scale)), max(1, int(height * scale))
+
+
 def resize_screenshot(screenshot_bytes: bytes, target_w: int, target_h: int) -> str:
     """
     Resize a screenshot to target dimensions and return as base64.
 
-    On Retina displays the raw screenshot is 2x the logical window size.
-    Resizing to the logical size means Claude's pixel coordinates map 1:1
-    to window-local coordinates — no scaling math needed.
+    The target dimensions are chosen once from the first raw screenshot and
+    remain stable for the Computer Use conversation.
     """
     img = Image.open(BytesIO(screenshot_bytes))
     if img.size != (target_w, target_h):
@@ -132,24 +147,55 @@ class ClaudeComputerUseAgent:
 
         self.client = anthropic.Anthropic(api_key=key)
         self.model = model
+        # Logical window dimensions used by pyautogui.
         self.display_width = display_width
         self.display_height = display_height
+        # Dimensions of the higher-resolution image Claude actually sees.
+        # These are configured from the first raw screenshot in start().
+        self.screenshot_width = display_width
+        self.screenshot_height = display_height
         self.system_prompt = system_prompt or self.DEFAULT_SYSTEM_PROMPT
         self.messages: list[dict] = []
         self._pending_guidance: Optional[str] = None
+        self.tools: list[dict] = []
+
+    def _configure_screenshot_space(self, screenshot_bytes: bytes) -> None:
+        """Set the API-safe image dimensions and matching Computer Use surface."""
+        raw_width, raw_height = Image.open(BytesIO(screenshot_bytes)).size
+        self.screenshot_width, self.screenshot_height = (
+            calculate_screenshot_dimensions(raw_width, raw_height)
+        )
         self.tools = [
             {
                 "type": TOOL_VERSION,
                 "name": "computer",
-                "display_width_px": display_width,
-                "display_height_px": display_height,
+                "display_width_px": self.screenshot_width,
+                "display_height_px": self.screenshot_height,
             }
+        ]
+        print(
+            "[CLAUDE-CU] Screenshot spaces: "
+            f"raw={raw_width}x{raw_height}; "
+            f"sent={self.screenshot_width}x{self.screenshot_height}; "
+            f"logical={self.display_width}x{self.display_height}"
+        )
+
+    def _to_logical_coordinate(
+        self, coordinate: Optional[list[int]]
+    ) -> Optional[list[int]]:
+        """Map a coordinate from Claude's image space to window-local space."""
+        if coordinate is None:
+            return None
+        return [
+            round(coordinate[0] * self.display_width / self.screenshot_width),
+            round(coordinate[1] * self.display_height / self.screenshot_height),
         ]
 
     def start(self, goal: str, screenshot_bytes: bytes) -> ClaudeCUResponse:
         """Begin a new task with a goal and initial screenshot."""
+        self._configure_screenshot_space(screenshot_bytes)
         screenshot_b64 = resize_screenshot(
-            screenshot_bytes, self.display_width, self.display_height
+            screenshot_bytes, self.screenshot_width, self.screenshot_height
         )
 
         self.messages = [
@@ -191,7 +237,7 @@ class ClaudeComputerUseAgent:
         Claude treats it as a direct operator message.
         """
         screenshot_b64 = resize_screenshot(
-            screenshot_bytes, self.display_width, self.display_height
+            screenshot_bytes, self.screenshot_width, self.screenshot_height
         )
 
         pending_guidance = self._pending_guidance
@@ -249,11 +295,15 @@ class ClaudeComputerUseAgent:
             if block.type == "tool_use" and block.name == "computer":
                 inp = block.input
                 action_type = inp.get("action", "")
+                model_coordinate = inp.get("coordinate")
+                model_start_coordinate = inp.get("start_coordinate")
+                model_end_coordinate = inp.get("end_coordinate")
 
                 actions.append(ClaudeCUAction(
                     tool_use_id=block.id,
                     action=action_type,
-                    coordinate=inp.get("coordinate"),
+                    model_coordinate=model_coordinate,
+                    coordinate=self._to_logical_coordinate(model_coordinate),
                     text=inp.get("text"),
                     keys=inp.get("keys") if isinstance(inp.get("keys"), list) else (
                         [inp["keys"]] if inp.get("keys") else None
@@ -261,8 +311,14 @@ class ClaudeComputerUseAgent:
                     scroll_direction=inp.get("scroll_direction"),
                     scroll_amount=inp.get("scroll_amount"),
                     button=inp.get("button"),
-                    start_coordinate=inp.get("start_coordinate"),
-                    end_coordinate=inp.get("end_coordinate"),
+                    model_start_coordinate=model_start_coordinate,
+                    start_coordinate=self._to_logical_coordinate(
+                        model_start_coordinate
+                    ),
+                    model_end_coordinate=model_end_coordinate,
+                    end_coordinate=self._to_logical_coordinate(
+                        model_end_coordinate
+                    ),
                     duration=inp.get("duration"),
                 ))
             elif block.type == "thinking":
