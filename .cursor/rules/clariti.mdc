@@ -585,6 +585,9 @@ Production execution agent. Uses Anthropic's native Computer Use beta to control
 - `step(tool_use_ids, screenshot_bytes)` — continues after executing actions; accepts a list of `tool_use_id`s (one per action in the previous response) and sends them all back with the same final screenshot
 - `inject_guidance(text)` — queues operator guidance to be sent in the next `step()` call as a top-level user message text block
 - Runs synchronous Anthropic API calls via `await asyncio.to_thread()` to avoid blocking the FastAPI event loop (critical for pause/abort to work)
+- Maintains the complete per-test Anthropic message history in `self.messages`; every `_call()` resends that history, including previous screenshot tool results
+- When `CLAUDE_CU_DEBUG_MESSAGES=true`, logs the sanitized request structure before each API call and response token usage afterward. Base64 image data is replaced by size metadata, but text goals and operator guidance remain visible and may be sensitive.
+- Enables Anthropic's automatic five-minute prompt cache on every Computer Use request via `cache_control={"type": "ephemeral"}`. Live verification showed `cache_read_input_tokens` increasing on later turns, confirming that the growing conversation prefix is served as discounted cache reads.
 
 **Default model:** `claude-haiku-4-5`
 **Beta flag:** `computer-use-2025-01-24`

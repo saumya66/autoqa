@@ -8,10 +8,11 @@ Coordinates are in actual pixels (no normalization).
 
 import os
 import base64
+import json
 import math
 from io import BytesIO
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 import anthropic
 from PIL import Image
@@ -22,6 +23,61 @@ TOOL_VERSION = "computer_20250124"
 BETA_FLAG = "computer-use-2025-01-24"
 MAX_SCREENSHOT_LONG_EDGE = 1568
 MAX_SCREENSHOT_PIXELS = 1_150_000
+
+
+def _debug_messages_enabled() -> bool:
+    """Return whether sanitized Anthropic request logging is enabled."""
+    return os.getenv("CLAUDE_CU_DEBUG_MESSAGES", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _sanitise_for_debug(value: Any) -> Any:
+    """Convert Anthropic payload objects to JSON-safe values and redact images."""
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(exclude_none=True)
+
+    if isinstance(value, dict):
+        is_base64_source = value.get("type") == "base64" and isinstance(
+            value.get("data"), str
+        )
+        sanitised = {}
+        for key, item in value.items():
+            if is_base64_source and key == "data":
+                encoded_chars = len(item)
+                padding = len(item) - len(item.rstrip("="))
+                approximate_bytes = max(0, encoded_chars * 3 // 4 - padding)
+                sanitised[key] = (
+                    f"<redacted base64 image: {encoded_chars} chars, "
+                    f"~{approximate_bytes} bytes>"
+                )
+            else:
+                sanitised[key] = _sanitise_for_debug(item)
+        return sanitised
+
+    if isinstance(value, (list, tuple)):
+        return [_sanitise_for_debug(item) for item in value]
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    return repr(value)
+
+
+def _count_images(value: Any) -> int:
+    """Count image content blocks in an Anthropic request payload."""
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(exclude_none=True)
+    if isinstance(value, dict):
+        return (1 if value.get("type") == "image" else 0) + sum(
+            _count_images(item) for item in value.values()
+        )
+    if isinstance(value, (list, tuple)):
+        return sum(_count_images(item) for item in value)
+    return 0
 
 BATCHING_INSTRUCTIONS = (
     "\n\nMULTI-ACTION BATCHING — CRITICAL FOR PERFORMANCE:\n"
@@ -158,6 +214,7 @@ class ClaudeComputerUseAgent:
         self.messages: list[dict] = []
         self._pending_guidance: Optional[str] = None
         self.tools: list[dict] = []
+        self._api_call_count = 0
 
     def _configure_screenshot_space(self, screenshot_bytes: bytes) -> None:
         """Set the API-safe image dimensions and matching Computer Use surface."""
@@ -276,6 +333,25 @@ class ClaudeComputerUseAgent:
 
     def _call(self) -> ClaudeCUResponse:
         """Call Claude and parse the response."""
+        self._api_call_count += 1
+        debug_messages = _debug_messages_enabled()
+        if debug_messages:
+            debug_request = {
+                "event": "anthropic_request",
+                "call": self._api_call_count,
+                "message_count": len(self.messages),
+                "roles": [message.get("role") for message in self.messages],
+                "image_count": _count_images(self.messages),
+                "system": _sanitise_for_debug(self.system_prompt),
+                "tools": _sanitise_for_debug(self.tools),
+                "messages": _sanitise_for_debug(self.messages),
+            }
+            print(
+                "[CLAUDE-CU-DEBUG] Sanitized request; text fields may contain "
+                "goals, typed values, or operator guidance.\n"
+                + json.dumps(debug_request, ensure_ascii=False, indent=2)
+            )
+
         response = self.client.beta.messages.create(
             model=self.model,
             max_tokens=4096,
@@ -283,7 +359,27 @@ class ClaudeComputerUseAgent:
             tools=self.tools,
             messages=self.messages,
             betas=[BETA_FLAG],
+            cache_control={"type": "ephemeral"},
         )
+
+        if debug_messages:
+            usage = response.usage
+            debug_usage = {
+                "event": "anthropic_response_usage",
+                "call": self._api_call_count,
+                "input_tokens": getattr(usage, "input_tokens", None),
+                "output_tokens": getattr(usage, "output_tokens", None),
+                "cache_creation_input_tokens": getattr(
+                    usage, "cache_creation_input_tokens", None
+                ),
+                "cache_read_input_tokens": getattr(
+                    usage, "cache_read_input_tokens", None
+                ),
+            }
+            print(
+                "[CLAUDE-CU-DEBUG] "
+                + json.dumps(debug_usage, ensure_ascii=False)
+            )
 
         self.messages.append({"role": "assistant", "content": response.content})
 

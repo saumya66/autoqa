@@ -1,0 +1,54 @@
+---
+description: Clariti business economics and observed AI execution costs
+alwaysApply: true
+---
+
+# Clariti Business and Cost Context
+
+## Observed Haiku Execution Run
+
+The first measured production-style run used `claude-haiku-4-5-20251001` to execute one suite containing two tests.
+
+- API requests: 35
+- Input tokens: 646,694
+- Output tokens: 10,384
+- Haiku pricing used: $1/MTok input and $5/MTok output
+- Input cost: `646,694 / 1,000,000 * $1 = $0.646694`
+- Output cost: `10,384 / 1,000,000 * $5 = $0.051920`
+- Total run cost: `$0.698614`, approximately `$0.70`
+- Observed average cost per test: approximately `$0.35`
+- Approximately 93% of the cost came from input tokens
+
+Prompt caching was not configured in the backend for this run, so base input pricing applied.
+
+## Verified Prompt Caching
+
+Anthropic automatic five-minute caching is now enabled with `cache_control={"type": "ephemeral"}`. Live response usage showed `cache_read_input_tokens` increasing on later turns, confirming cache hits. Logical input-token counts still grow because the full conversation is sent, but cached prefixes are billed at $0.10/MTok instead of $1/MTok. Cache writes cost $1.25/MTok.
+
+A later 17-request run used 201,122 logical input tokens and 2,909 output tokens. It would have cost $0.2157 without caching; based on the inferred conversation boundaries, its estimated cached cost was $0.0827, a reduction of approximately 62%. Use response usage categories for exact billing:
+
+`(input_tokens * $1 + cache_creation_input_tokens * $1.25 + cache_read_input_tokens * $0.10 + output_tokens * $5) / 1,000,000`
+
+## Interpretation
+
+This is one observed run, not yet a statistically reliable average. Test complexity and turn count can vary, so do not treat suite cost as strictly linear without more measurements.
+
+The request history grew from roughly 4,000 to 35,000 input tokens as turns accumulated. Repeated conversation history and screenshots are therefore the primary cost driver.
+
+At the observed average, a five-test suite could cost about $1.75 and a ten-test suite about $3.50 if test complexity remained comparable.
+
+## Business Guidance
+
+- Do not offer cheap unlimited execution while direct cost scales with every run.
+- Prefer hosted suite credits, usage limits, and paid overages.
+- A reasonable early pilot concept is two free suite runs, then $99/month for 15 suites, with additional suites near $6 each.
+- Validate whether a completed suite saves enough QA labor to be worth materially more than its inference cost.
+- Treat approximately $0.50-$0.75 per suite as an initial optimization target before broad, high-volume self-serve pricing.
+
+## Cost Optimization Priorities
+
+1. Record input tokens, output tokens, API calls, turns, retries, duration, and estimated cost for every test and suite.
+2. Reduce unnecessary agent turns through action batching, early completion, loop detection, and strict turn or dollar budgets.
+3. Keep automatic prompt caching enabled and monitor cache creation/read usage; cached reads materially reduce cost but do not reduce context-window growth.
+4. Avoid repeatedly sending unchanged context or unnecessarily large screenshots where visual reliability is unaffected.
+5. Route routine work to the cheapest reliable model and reserve expensive retries or stronger models for ambiguous states.

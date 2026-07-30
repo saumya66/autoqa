@@ -24,7 +24,6 @@ import asyncio
 import json
 from datetime import datetime as _dt, timezone as _tz
 from pathlib import Path
-from uuid import uuid4
 from dotenv import load_dotenv
 
 # Load env vars BEFORE importing cloud_client so CLOUD_API_URL is available at module level
@@ -35,7 +34,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from fastapi import File, UploadFile, Form
-from starlette.background import BackgroundTask
 
 import pyautogui
 from actions import ActionType, execute_action, human_click, human_scroll
@@ -156,10 +154,8 @@ pause_flags: dict[str, bool] = {}
 pause_resume_events: dict[str, asyncio.Event] = {}
 # Optional guidance submitted alongside a manual resume: key = context_id
 pause_guidance: dict[str, str] = {}
-# Abort metadata keyed by unique execution_id, never by reusable feature/context ID.
-abort_flags: dict[str, dict] = {}
-# Currently active execution_id for each context, used to reject stale abort requests.
-active_execution_ids: dict[str, str] = {}
+# Abort flag: key = context_id — when True the execution loop should stop immediately
+abort_flags: dict[str, bool] = {}
 
 
 # =============================================================================
@@ -1936,51 +1932,6 @@ async def computer_use_stream(request: CURequest):
 # Claude Computer Use Endpoint
 # =============================================================================
 
-<<<<<<< Updated upstream
-=======
-def _save_coordinate_debug_image(
-    screenshot_bytes: bytes,
-    width: int,
-    height: int,
-    coordinate: list[int],
-    step_number: int,
-) -> str | None:
-    """Annotate screenshot with a red crosshair at the given coordinate.
-    Returns the saved path, or None if annotation fails (non-fatal)."""
-    try:
-        debug_image = Image.open(BytesIO(screenshot_bytes))
-        debug_image = debug_image.resize((width, height))
-        x, y = coordinate
-        draw = ImageDraw.Draw(debug_image)
-        draw.ellipse((x - 8, y - 8, x + 8, y + 8), outline="red", width=3)
-        draw.line((x - 12, y, x + 12, y), fill="red", width=2)
-        draw.line((x, y - 12, x, y + 12), fill="red", width=2)
-        debug_path = f"/tmp/clariti-coordinate-debug-{step_number}.png"
-        debug_image.save(debug_path)
-        return debug_path
-    except Exception as exc:
-        print(f"[EXECUTE-CU] Coordinate debug image unavailable: {exc}")
-        return None
-
-
-def _log_claude_coordinate_evidence(
-    action_name: str,
-    model_coordinate: list[int] | None,
-    local_coordinate: list[int],
-    global_coordinate: list[int] | None,
-    rationale: str,
-    debug_path: str | None,
-) -> None:
-    print(
-        f"[EXECUTE-CU] Action evidence: action={action_name}; "
-        f"model={model_coordinate or 'unavailable'}; "
-        f"local={local_coordinate}; global={global_coordinate or 'unavailable'}; "
-        f"claimed_target={rationale or 'unavailable'}; "
-        f"debug_image={debug_path or 'unavailable'}"
-    )
-
-
->>>>>>> Stashed changes
 def execute_claude_action(action, window) -> dict:
     """Execute a single Claude Computer Use action. Coords are in window-local pixels."""
     result = {}
@@ -2625,7 +2576,6 @@ async def get_test_plan(context_id: str):
 class ExecuteTestsRequest(BaseModel):
     """Request to execute generated tests."""
     window_title: str
-    execution_id: str | None = None
     test_ids: list = None  # If None, execute all tests
     provider: str = "claude"
     # Optional: when set and CLOUD_API_URL configured, fetch tests from cloud and save runs/results
@@ -2661,7 +2611,7 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
     print(f"[EXECUTE] ===== /feature/{context_id}/execute ENDPOINT CALLED =====")
     print(f"[EXECUTE] Request received: context_id={context_id}, window_title={request.window_title}, provider={request.provider}")
     print(f"[EXECUTE] Request test_ids: {request.test_ids}")
-
+    
     # Load test plan: from cloud when logged in, else from local
     test_cases = []
     if cloud_is_configured() and request.cloud_feature_id and request.cloud_user_id and request.cloud_token:
@@ -2724,37 +2674,6 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
     except Exception as e:
         print(f"[EXECUTE] ✗ Error finding window: {e}")
         raise HTTPException(status_code=500, detail=f"Error finding window: {str(e)}")
-
-    execution_id = request.execution_id or str(uuid4())
-    previous_execution_id = active_execution_ids.get(context_id)
-    if previous_execution_id and previous_execution_id != execution_id:
-        abort_flags[previous_execution_id] = {
-            "reason": "superseded_by_new_execution",
-            "requested_at": _dt.now(_tz.utc).isoformat(),
-            "replacement_execution_id": execution_id,
-        }
-        print(
-            "[ABORT] Superseding active execution: "
-            f"context_id={context_id}; old_execution_id={previous_execution_id}; "
-            f"new_execution_id={execution_id}"
-        )
-    active_execution_ids[context_id] = execution_id
-    print(
-        f"[EXECUTE] Registered execution: context_id={context_id}; "
-        f"execution_id={execution_id}"
-    )
-
-    def cleanup_execution_state() -> None:
-        abort_flags.pop(execution_id, None)
-        if active_execution_ids.get(context_id) == execution_id:
-            active_execution_ids.pop(context_id, None)
-            pause_flags.pop(context_id, None)
-            pause_resume_events.pop(context_id, None)
-            pause_guidance.pop(context_id, None)
-        print(
-            f"[EXECUTE] Cleaned execution state: context_id={context_id}; "
-            f"execution_id={execution_id}"
-        )
     
     print(f"[EXECUTE] Starting async test suite execution...")
     print(f"{'='*80}\n")
@@ -2767,13 +2686,7 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
         print(f"[EXECUTE] Window: {request.window_title}")
         print(f"[EXECUTE] Total tests: {len(test_cases)}")
         
-        suite_start_event = {
-            'event': 'suite_start',
-            'context_id': context_id,
-            'execution_id': execution_id,
-            'window': request.window_title,
-            'total_tests': len(test_cases),
-        }
+        suite_start_event = {'event': 'suite_start', 'context_id': context_id, 'window': request.window_title, 'total_tests': len(test_cases)}
         yield f"data: {json.dumps(suite_start_event)}\n\n"
         
         # Cloud: create run when logged in (test cases already in cloud)
@@ -2862,14 +2775,6 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                 print(f"[DEBUG] ✗ Failed to build system prompt: {e}")
 
         for test_idx, test_case in enumerate(test_cases):
-            if abort_info := abort_flags.get(execution_id):
-                print(
-                    "[ABORT] Stopping suite before next test: "
-                    f"context_id={context_id}; execution_id={execution_id}; "
-                    f"abort={json.dumps(abort_info, default=str)}"
-                )
-                break
-
             test_id = test_case.get("id", f"TC-{test_idx+1}")
             test_title = test_case.get("title", "Unknown Test")
             print(f"[EXECUTE] ===== Test [{test_idx + 1}/{len(test_cases)}]: {test_id} - {test_title} =====")
@@ -2952,14 +2857,9 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
 
                 for turn in range(max_steps):
                     # Abort check — fires at the top of every turn
-                    if abort_info := abort_flags.get(execution_id):
-                        print(
-                            "[ABORT] 🛑  Execution aborted (Claude CU): "
-                            f"context_id={context_id}; execution_id={execution_id}; "
-                            f"turn={turn}; test_id={test_id}; "
-                            f"abort={json.dumps(abort_info, default=str)}"
-                        )
-                        yield f"data: {json.dumps({'event': 'aborted', 'test_id': test_id, 'execution_id': execution_id, 'reason': abort_info.get('reason')})}\n\n"
+                    if abort_flags.get(context_id):
+                        print(f"[ABORT] 🛑  Execution aborted (Claude CU) at turn {turn} for test {test_id}")
+                        yield f"data: {json.dumps({'event': 'aborted', 'test_id': test_id})}\n\n"
                         await asyncio.sleep(0)
                         break
 
@@ -3009,18 +2909,6 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
                             result = await asyncio.to_thread(execute_claude_action, action, window)
                             step_data['success'] = True
                             step_data['coordinates'] = result.get("coordinates")
-<<<<<<< Updated upstream
-=======
-                            if action.coordinate:
-                                _log_claude_coordinate_evidence(
-                                    action_name=action.action,
-                                    model_coordinate=action.model_coordinate,
-                                    local_coordinate=action.coordinate,
-                                    global_coordinate=result.get("coordinates"),
-                                    rationale=step_reasoning,
-                                    debug_path=debug_path,
-                                )
->>>>>>> Stashed changes
                         except Exception as e:
                             print(f"[EXECUTE-CU] Error: {e}")
                             step_data['error'] = str(e)
@@ -3087,14 +2975,9 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
 
                 for step_num in range(1, max_steps + 1):
                     # Abort check — fires at the top of every step
-                    if abort_info := abort_flags.get(execution_id):
-                        print(
-                            "[ABORT] 🛑  Execution aborted (Gemini): "
-                            f"context_id={context_id}; execution_id={execution_id}; "
-                            f"step={step_num}; test_id={test_id}; "
-                            f"abort={json.dumps(abort_info, default=str)}"
-                        )
-                        yield f"data: {json.dumps({'event': 'aborted', 'test_id': test_id, 'execution_id': execution_id, 'reason': abort_info.get('reason')})}\n\n"
+                    if abort_flags.get(context_id):
+                        print(f"[ABORT] 🛑  Execution aborted (Gemini) at step {step_num} for test {test_id}")
+                        yield f"data: {json.dumps({'event': 'aborted', 'test_id': test_id})}\n\n"
                         await asyncio.sleep(0)
                         break
 
@@ -3338,50 +3221,13 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
                 )
             except Exception as e:
                 print(f"[EXECUTE] Cloud run update failed: {e}")
-<<<<<<< Updated upstream
-=======
-
-        if (
-            suite_learning_logs
-            and not abort_flags.get(execution_id)
-            and learning_project_id
-            and learning_project_context
-            and request.cloud_token
-        ):
-            yield f"data: {json.dumps({'event': 'context_learning'})}\n\n"
-            try:
-                from agents.project_context_learner_agent import ProjectContextLearnerAgent
-
-                learner = ProjectContextLearnerAgent(
-                    provider="claude",
-                    api_key=request.anthropic_api_key or None,
-                )
-                learner_result = await asyncio.to_thread(
-                    learner.update_project_context,
-                    learning_project_context,
-                    learning_feature_context,
-                    suite_learning_logs,
-                )
-                updated_context = (learner_result or {}).get("updated_project_context", "").strip()
-                change_summary = (learner_result or {}).get("change_summary", "").strip()
-                if not updated_context:
-                    raise ValueError("Learner returned no updated project context")
-
-                updated_project = await asyncio.to_thread(
-                    cloud_update_project,
-                    learning_project_id,
-                    token=request.cloud_token,
-                    context_summary=updated_context,
-                )
-                if not updated_project:
-                    raise RuntimeError("Cloud project context update failed")
-
-                yield f"data: {json.dumps({'event': 'context_learned', 'updated': True, 'change_summary': change_summary})}\n\n"
-            except Exception as e:
-                print(f"[LEARNER] Project context update failed: {e}")
-                yield f"data: {json.dumps({'event': 'context_learning_warning', 'message': str(e)})}\n\n"
->>>>>>> Stashed changes
         
+        # Clean up all per-context state
+        abort_flags.pop(context_id, None)
+        pause_flags.pop(context_id, None)
+        pause_resume_events.pop(context_id, None)
+        pause_guidance.pop(context_id, None)
+
         suite_complete_event = {'event': 'suite_complete', 'passed': suite_results['passed'], 'failed': suite_results['failed'], 'skipped': suite_results['skipped'], 'total': len(test_cases)}
         yield f"data: {json.dumps(suite_complete_event)}\n\n"
         print(f"[EXECUTE] ===== Execution Finished =====")
@@ -3393,8 +3239,7 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no"
-        },
-        background=BackgroundTask(cleanup_execution_state),
+        }
     )
 
 
@@ -3473,64 +3318,14 @@ async def resume_execution(context_id: str, request: ResumeExecutionRequest):
     return {"success": True, "message": "Execution resumed."}
 
 
-class AbortExecutionRequest(BaseModel):
-    execution_id: str | None = None
-
-
 @app.post("/feature/{context_id}/execute/abort")
-async def abort_execution(
-    context_id: str,
-    http_request: Request,
-    body: AbortExecutionRequest | None = None,
-):
+async def abort_execution(context_id: str):
     """
     Immediately abort the execution loop for this context.
     The loop checks this flag at the start of every step and will break out.
     Any active pause-wait event is also fired so the loop isn't stuck waiting.
     """
-    requested_execution_id = body.execution_id if body else None
-    active_execution_id = active_execution_ids.get(context_id)
-
-    if not requested_execution_id:
-        print(
-            "[ABORT] Ignored abort without execution ID: "
-            f"context_id={context_id}; active_execution_id={active_execution_id}"
-        )
-        return {
-            "success": False,
-            "message": "execution_id is required to abort safely.",
-        }
-
-    if not active_execution_id:
-        print(
-            "[ABORT] Ignored abort with no active execution: "
-            f"context_id={context_id}; requested_execution_id={requested_execution_id}"
-        )
-        return {"success": False, "message": "No active execution to abort."}
-
-    if (
-        requested_execution_id
-        and requested_execution_id != active_execution_id
-    ):
-        print(
-            "[ABORT] Ignored stale abort request: "
-            f"context_id={context_id}; requested_execution_id={requested_execution_id}; "
-            f"active_execution_id={active_execution_id}"
-        )
-        return {
-            "success": False,
-            "message": "Abort request belongs to an older execution.",
-        }
-
-    client_host = (
-        http_request.client.host if http_request.client else "unknown"
-    )
-    abort_flags[active_execution_id] = {
-        "reason": "user_requested",
-        "requested_at": _dt.now(_tz.utc).isoformat(),
-        "requested_by": client_host,
-        "context_id": context_id,
-    }
+    abort_flags[context_id] = True
     # If the loop is currently waiting on a manual pause, unblock it so it can exit
     evt = pause_resume_events.get(context_id)
     if evt:
@@ -3539,12 +3334,7 @@ async def abort_execution(
     for key in list(guidance_events.keys()):
         if key.startswith(f"{context_id}:"):
             guidance_events[key].set()
-    print(
-        "[ABORT] 🛑  Abort requested: "
-        f"context_id={context_id}; execution_id={active_execution_id}; "
-        f"requested_by={client_host}; "
-        f"requested_at={abort_flags[active_execution_id]['requested_at']}"
-    )
+    print(f"[ABORT] 🛑  Abort requested for context {context_id} — loop will stop after current step")
     return {"success": True, "message": "Abort signal sent."}
 
 
