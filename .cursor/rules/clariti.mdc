@@ -36,6 +36,50 @@ Three independent services communicate to deliver the full product:
 
 ---
 
+## Running Locally (Dev)
+
+Each service has its own virtualenv (`backend/.venv`, `cloud-backend/.venv`). Ports matter: the local backend runs on **8000** (`HOST`/`PORT` in `backend/.env`), and the cloud backend must run on **8001** because `backend/.env` points `CLOUD_API_URL=http://localhost:8001`. The cloud backend config defaults to port 8000 (`cloud-backend/app/core/config.py`), which would collide with the local backend, so override it.
+
+**Local backend** (FastAPI + uvicorn, port 8000):
+
+```bash
+cd backend
+source .venv/bin/activate
+python main.py
+```
+
+**Cloud backend** (FastAPI + MongoDB, port 8001):
+
+```bash
+cd cloud-backend
+source .venv/bin/activate
+PORT=8001 python main.py
+```
+
+`PORT=8001` works because `Settings` is a pydantic `BaseSettings` — environment variables override the defaults. Alternatively, add `PORT=8001` to `cloud-backend/.env` and just run `python main.py`.
+
+**Frontend** (Vite dev server, port 5173):
+
+```bash
+cd frontend
+npm run dev
+```
+
+One-liners without activating the venvs:
+
+```bash
+backend/.venv/bin/python backend/main.py
+PORT=8001 cloud-backend/.venv/bin/python cloud-backend/main.py
+```
+
+Notes:
+
+- The cloud backend runs uvicorn with `reload=True`, so it auto-restarts on code changes; the local backend does not — restart it manually after edits.
+- On startup, the local backend triggers the macOS Screen Recording and Accessibility permission dialogs (see macOS Permissions). Both must be granted to the launching terminal/process for screenshots and mouse/keyboard control to work.
+- In local dev (browser) mode, `ANTHROPIC_API_KEY` must be uncommented in `backend/.env` — there is no Electron keychain IPC in the browser (see Anthropic API Key Management).
+
+---
+
 ## Frontend
 
 ### Tech Stack
@@ -328,14 +372,17 @@ Local Backend (/feature/{featureId}/execute  →  execute_tests_stream generator
     h. PATCH cloud TestResult (cloud_result_id) with final status, conclusion, steps_executed
 
   POST-LOOP:
-    POST TestRun to cloud
+    PATCH the cloud TestRun with final counts and completion time
     If the suite has meaningful logs and was not aborted:
-      1. Run ProjectContextLearnerAgent once with current project context,
-         feature context, and compact text-only suite logs
-      2. Learner returns a complete revised project context that preserves
+      1. `execution_learning.py` strips screenshots, coordinates, timestamps,
+         and other non-text payloads; it retains at most 60 representative
+         steps per test (first 30 + last 30)
+      2. Run ProjectContextLearnerAgent once with current project context,
+         feature context, and the bounded suite logs
+      3. Learner returns a complete revised project context that preserves
          accurate existing knowledge and excludes run-local state
-      3. PATCH Project.context_summary; source_memory is never modified
-      4. SSE: context_learning → context_learned, or context_learning_warning
+      4. PATCH Project.context_summary; source_memory is never modified
+      5. SSE: context_learning → context_learned, or context_learning_warning
          if this non-fatal update fails
     SSE: { event: "suite_complete", passed, failed, skipped, total }
     Clean up all per-context state (abort_flags, pause_flags, events, etc.)
@@ -460,6 +507,8 @@ The `cu_system_prompt` pre-authorises this channel:
 - `frontend/src/routes/app/execute.tsx`
 - `frontend/src/store/testSuiteExecutionStore.ts`
 - `backend/main.py` → `execute_tests_stream` endpoint
+- `backend/execution_learning.py` → bounded log construction, eligibility, and cloud-update orchestration
+- `backend/agents/project_context_learner_agent.py`
 - `backend/agents/claude_computer_use_agent.py`
 
 ---

@@ -45,6 +45,11 @@ from agents.claude_computer_use_agent import ClaudeComputerUseAgent, BATCHING_IN
 from agents.orchestrator_agent import ActionType as OrchestratorActionType
 from agents.vision_agent import calculate_screen_coordinates
 from agents.planner_agent import ActionType as PlanActionType
+from execution_learning import (
+    build_suite_learning_log,
+    learn_and_update_project,
+    should_run_context_learning,
+)
 from vision import (
     calculate_click_coordinates,
     configure_gemini,
@@ -2709,6 +2714,10 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                 print(f"[EXECUTE] Cloud run create failed: {e}")
         
         suite_results = {"passed": 0, "failed": 0, "skipped": 0, "test_results": []}
+        suite_learning_logs: list[dict] = []
+        learning_project_id: str | None = None
+        learning_project_context = ""
+        learning_feature_context = ""
 
         # ── Build Claude system prompt once (fetches project + feature context) ──
         cu_system_prompt: str | None = None
@@ -2722,9 +2731,10 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
 
                 if feat:
                     print(f"[DEBUG] Feature fetched: id={feat.get('id')}, has_context_summary={bool(feat.get('context_summary'))}")
-                    if feat.get("context_summary"):
-                        feature_context_str = f"Feature context (what this feature does or what is this test suite about):\n{feat['context_summary']}"
-                        print(f"[DEBUG] Feature context_summary length: {len(feat['context_summary'])} chars")
+                    learning_feature_context = (feat.get("context_summary") or "").strip()
+                    if learning_feature_context:
+                        feature_context_str = f"Feature context (what this feature does or what is this test suite about):\n{learning_feature_context}"
+                        print(f"[DEBUG] Feature context_summary length: {len(learning_feature_context)} chars")
                     else:
                         print(f"[DEBUG] Feature has no context_summary — skipping feature context")
 
@@ -2733,11 +2743,18 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                     if project_id:
                         try:
                             proj = await asyncio.to_thread(cloud_get_project, project_id, token=request.cloud_token)
-                            if proj and proj.get("context_summary"):
-                                project_context_str = f"Project context (overall app):\n{proj['context_summary']}"
-                                print(f"[DEBUG] Project context_summary length: {len(proj['context_summary'])} chars")
+                            if proj:
+                                learning_project_id = str(project_id)
+                                learning_project_context = (
+                                    proj.get("context_summary") or ""
+                                ).strip()
+                                if learning_project_context:
+                                    project_context_str = f"Project context (overall app):\n{learning_project_context}"
+                                    print(f"[DEBUG] Project context_summary length: {len(learning_project_context)} chars")
+                                else:
+                                    print(f"[DEBUG] Project fetched but has no context_summary")
                             else:
-                                print(f"[DEBUG] Project fetched but has no context_summary")
+                                print(f"[DEBUG] Project fetch returned None — learning disabled")
                         except Exception as e:
                             print(f"[DEBUG] Failed to fetch project context: {e}")
                     else:
@@ -3171,6 +3188,14 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
                 suite_results["failed"] += 1
             
             suite_results["test_results"].append({"test_id": test_id, "title": test_title, "status": test_status, "steps": test_steps})
+            suite_learning_logs.append(
+                build_suite_learning_log(
+                    test_case=test_case,
+                    status=test_status,
+                    conclusion=conclusion,
+                    steps=test_steps,
+                )
+            )
             
             # Cloud: update the TestResult created at test_start with final status + conclusion
             if cloud_run_id:
@@ -3221,6 +3246,51 @@ Expected result: {test_case.get("expected_result", "N/A")}"""
                 )
             except Exception as e:
                 print(f"[EXECUTE] Cloud run update failed: {e}")
+
+        learning_aborted = bool(abort_flags.get(context_id))
+        if should_run_context_learning(
+            logs=suite_learning_logs,
+            aborted=learning_aborted,
+            project_id=learning_project_id,
+            cloud_token=request.cloud_token,
+        ):
+            yield f"data: {json.dumps({'event': 'context_learning'})}\n\n"
+            await asyncio.sleep(0)
+            try:
+                from agents.project_context_learner_agent import ProjectContextLearnerAgent
+
+                learner = ProjectContextLearnerAgent(
+                    provider="claude",
+                    api_key=request.anthropic_api_key or None,
+                )
+                learner_result = await asyncio.to_thread(
+                    learn_and_update_project,
+                    learner=learner,
+                    update_project=cloud_update_project,
+                    project_id=learning_project_id,
+                    cloud_token=request.cloud_token,
+                    project_context=learning_project_context,
+                    feature_context=learning_feature_context,
+                    logs=suite_learning_logs,
+                )
+                change_summary = learner_result["change_summary"]
+
+                print(
+                    "[LEARNER] Project context updated: "
+                    f"project_id={learning_project_id}; "
+                    f"summary={change_summary or 'No change summary returned'}"
+                )
+                yield f"data: {json.dumps({'event': 'context_learned', 'updated': True, 'change_summary': change_summary})}\n\n"
+            except Exception as e:
+                print(f"[LEARNER] Project context update failed: {e}")
+                yield f"data: {json.dumps({'event': 'context_learning_warning', 'message': str(e)})}\n\n"
+        else:
+            print(
+                "[LEARNER] Skipping project context learning: "
+                f"logs={len(suite_learning_logs)}; aborted={learning_aborted}; "
+                f"project_id={learning_project_id or 'missing'}; "
+                f"cloud_token={'set' if request.cloud_token else 'missing'}"
+            )
         
         # Clean up all per-context state
         abort_flags.pop(context_id, None)

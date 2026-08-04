@@ -29,13 +29,26 @@ A later 17-request run used 201,122 logical input tokens and 2,909 output tokens
 
 `(input_tokens * $1 + cache_creation_input_tokens * $1.25 + cache_read_input_tokens * $0.10 + output_tokens * $5) / 1,000,000`
 
+## Latest Cached Suite Observation
+
+The latest reported suite made 57 Haiku requests across three apparent per-test conversation sequences (18, 8, and 31 requests).
+
+- Logical input tokens: 1,308,779
+- Output tokens: 13,130
+- Dashboard-deducted cached cost reported by the user: approximately `$0.31` (not 0.31 cents)
+- Equivalent uncached cost at current rates: `$1.3744`
+- Observed savings from caching: approximately `$1.06` or `77.4%`
+- If this was a three-test suite, observed direct AI cost: approximately `$0.10` per test
+
+The exact cached allocation cannot be reconstructed from dashboard logical input/output columns alone; it depends on each response's `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`. Treat the `$0.31` deduction as the authoritative total for this run.
+
 ## Interpretation
 
-This is one observed run, not yet a statistically reliable average. Test complexity and turn count can vary, so do not treat suite cost as strictly linear without more measurements.
+Multiple runs have now been observed: an initial uncached two-test suite, a smaller cached run, and a latest cached suite with three apparent test conversations. This is enough to confirm that prompt caching substantially improves cost, but not enough to establish a statistically reliable average. Test complexity, turn count, retries, and test count vary, so do not treat suite cost as strictly linear without collecting more comparable runs.
 
 The request history grew from roughly 4,000 to 35,000 input tokens as turns accumulated. Repeated conversation history and screenshots are therefore the primary cost driver.
 
-At the observed average, a five-test suite could cost about $1.75 and a ten-test suite about $3.50 if test complexity remained comparable.
+Caching materially improves economics: the latest observed cached run was approximately `$0.10` per test if it contained three tests. This is still not a stable average—test complexity, retries, and turns vary—so continue collecting per-run usage data before forecasting pricing.
 
 ## Business Guidance
 
