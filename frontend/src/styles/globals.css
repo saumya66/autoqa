@@ -104,6 +104,31 @@
   background: color-mix(in srgb, var(--muted-foreground) 50%, transparent);
 }
 
+/* The project-onboarding dialog remains scrollable without exposing a rail. */
+.project-create-dialog,
+.project-create-dialog > div:first-child {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.project-create-dialog::-webkit-scrollbar,
+.project-create-dialog > div:first-child::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.project-create-dialog input::placeholder,
+.project-create-dialog textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+.project-create-dialog #cp-name::placeholder,
+.project-create-dialog #cp-desc::placeholder {
+  font-size: 12px !important;
+}
+
 /* Clickable elements - cursor pointer (base for all interactive UI) */
 button:not(:disabled),
 a[href],
@@ -164,7 +189,7 @@ body {
 
 /* Smooth transitions */
 * {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }

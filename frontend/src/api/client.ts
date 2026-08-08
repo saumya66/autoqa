@@ -234,7 +234,7 @@ export interface ProjectUpdateInput {
   name?: string;
   description?: string;
   context_summary?: string;
-  source_memory?: string;
+  source_memory?: string | null;
 }
 
 // =============================================================================
@@ -306,7 +306,6 @@ export async function updateProjectContext(
   projectId: string,
   images: File[],
   texts: string[],
-  sourceMemory: string | undefined,
   callbacks: CloudContextUpdateCallbacks
 ): Promise<void> {
   const token = useAuthStore.getState().token;
@@ -322,7 +321,6 @@ export async function updateProjectContext(
   const response = await streamLocalFetch(`/cloud/project/${projectId}/update-context`, {
     images: imagePayloads,
     texts,
-    source_memory: sourceMemory,
     token,
     anthropic_api_key: anthropicKey,
   });

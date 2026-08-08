@@ -21,9 +21,9 @@ function AppLayout() {
   }
 
   return (
-    <SidebarProvider className="flex-1 overflow-hidden" data-app-header>
+    <SidebarProvider className="h-full min-h-0 flex-1 overflow-hidden bg-white" data-app-header>
       <AppSidebar />
-      <SidebarInset className="bg-background text-foreground">
+      <SidebarInset className="min-h-0 overflow-hidden border-l border-[#ececf1] bg-[#fafafd] text-foreground">
         <Outlet />
       </SidebarInset>
     </SidebarProvider>

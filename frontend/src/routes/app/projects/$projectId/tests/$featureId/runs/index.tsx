@@ -47,7 +47,7 @@ function relativeTime(dateStr: string) {
 function RunStatusBadge({ status, passed, failed, skipped }: { status: string; passed: number; failed: number; skipped: number }) {
   if (status === 'running') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-700">
         <Loader2 className="size-3.5 animate-spin" />
         Running
       </span>
@@ -56,21 +56,21 @@ function RunStatusBadge({ status, passed, failed, skipped }: { status: string; p
   if (status === 'completed') {
     if (failed === 0) {
       return (
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-          <CheckCircle2 className="size-3.5" />
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700">
+          <CheckCircle2 className="size-3" />
           All passed
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-500">
-        <XCircle className="size-3.5" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-600">
+        <XCircle className="size-3" />
         {failed} failed
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f5f5f8] px-2.5 py-1 text-xs font-medium text-muted-foreground">
       {status}
     </span>
   );
@@ -107,18 +107,18 @@ function RunRow({
     <button
       onClick={handleClick}
       className={cn(
-        'group w-full grid grid-cols-[auto_1fr_auto_auto] items-center gap-5 px-6 py-4 transition-colors hover:bg-muted/40 text-left',
-        index !== 0 && 'border-t border-border'
+        'group grid w-full grid-cols-[auto_1fr_auto_auto] items-center gap-5 px-6 py-4 text-left transition-colors hover:bg-[#fafafd]',
+        index !== 0 && 'border-t border-[#ececf1]'
       )}
     >
       {/* Run number / icon */}
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 transition-colors group-hover:bg-violet-500/15">
         <History className="size-4" />
       </div>
 
       {/* Run info */}
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+        <p className="truncate text-sm font-semibold text-foreground transition-colors group-hover:text-violet-700">
           Run #{index + 1}
         </p>
         <div className="flex items-center gap-3 mt-0.5">
@@ -156,7 +156,7 @@ function RunRow({
       </div>
 
       {/* Chevron */}
-      <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-violet-600" />
     </button>
   );
 }
@@ -171,7 +171,7 @@ function PastRunsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto p-6">
-    <div className="max-w-4xl mx-auto w-full flex flex-col flex-1">
+    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col">
       {/* Breadcrumb */}
       <Breadcrumb className="mb-6">
         <BreadcrumbList>
@@ -228,7 +228,7 @@ function PastRunsPage() {
       {/* Page header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Past Runs</h1>
+          <h1 className="font-serif text-3xl font-light tracking-tight text-foreground">Past Runs</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {loading ? (
               <span className="animate-pulse">Loading…</span>
@@ -243,7 +243,7 @@ function PastRunsPage() {
         <Link
           to="/app/projects/$projectId/tests/$featureId"
           params={{ projectId, featureId }}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground active:scale-95"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[#ececf1] bg-white px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-[#f5f5f8] hover:text-foreground active:scale-95"
         >
           <ArrowLeft className="size-3.5" />
           Back to Suite
@@ -252,13 +252,13 @@ function PastRunsPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-[#ececf1] bg-white shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
           {[...Array(3)].map((_, i) => (
             <div
               key={i}
               className={cn(
                 'flex items-center gap-4 px-6 py-4',
-                i !== 0 && 'border-t border-border'
+                i !== 0 && 'border-t border-[#ececf1]'
               )}
             >
               <div className="size-9 rounded-xl bg-muted animate-pulse shrink-0" />
@@ -275,8 +275,8 @@ function PastRunsPage() {
           <p className="text-sm text-destructive">{error}</p>
         </div>
       ) : runs.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 p-16 text-center">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-[#d9d9e1] bg-white p-16 text-center">
+          <div className="flex size-16 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
             <History className="size-8" />
           </div>
           <h2 className="mt-5 text-base font-semibold text-foreground">No runs yet</h2>
@@ -286,15 +286,15 @@ function PastRunsPage() {
           <Link
             to="/app/projects/$projectId/tests/$featureId"
             params={{ projectId, featureId }}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#29292f]"
           >
             Go to Test Suite
           </Link>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-[#ececf1] bg-white shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
           {/* Column headers */}
-          <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-5 border-b border-border px-6 py-3">
+          <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-5 border-b border-[#ececf1] bg-[#fafafd] px-6 py-3">
             <div className="size-9" />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Run

@@ -80,7 +80,7 @@ export function ProjectCard({
       <Link
         to="/app/projects/$projectId"
         params={{ projectId: project.id }}
-        className="group flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-primary/30 hover:shadow-sm"
+        className="group flex items-center gap-4 rounded-xl border border-[#ececf1] bg-white px-4 py-3 transition-all hover:border-violet-200 hover:shadow-sm"
       >
         <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl', palette.bg)}>
           <Icon className={cn('size-4', palette.text)} />
@@ -127,15 +127,15 @@ export function ProjectCard({
       params={{ projectId: project.id }}
       className="group block"
     >
-      <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-5 transition-all hover:border-primary/20 hover:shadow-md">
+      <div className="flex h-full min-h-47 flex-col rounded-2xl border border-[#ececf1] bg-white! p-4 shadow-[0_2px_8px_rgba(15,15,25,0.05)] transition-all hover:border-violet-200 hover:shadow-md">
         {/* Top row: icon + badge + menu */}
-        <div className="mb-4 flex items-start justify-between">
-          <div className={cn('flex size-11 items-center justify-center rounded-2xl', palette.bg)}>
-            <Icon className={cn('size-5', palette.text)} />
+        <div className="mb-3 flex items-start justify-between">
+          <div className={cn('flex size-10 items-center justify-center rounded-xl', palette.bg)}>
+            <Icon className={cn('size-4.5', palette.text)} />
           </div>
           <div className="flex items-center gap-2">
             <span className={cn(
-              'rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
+              'rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
               hasContext ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-muted-foreground/70'
             )}>
               {hasContext ? 'Ready' : 'No context'}
@@ -145,7 +145,7 @@ export function ProjectCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 opacity-0 transition-opacity group-hover:opacity-100"
+                  className="size-7 text-muted-foreground"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 >
                   <MoreVertical className="size-3.5" />
@@ -161,17 +161,17 @@ export function ProjectCard({
         </div>
 
         {/* Title + description */}
-        <h3 className="text-base font-bold text-foreground">{project.name}</h3>
-        <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted-foreground">
+        <h3 className="text-sm font-semibold text-foreground">{project.name}</h3>
+        <p className="mt-1 line-clamp-2 flex-1 text-xs leading-5 text-muted-foreground">
           {project.description || <span className="italic opacity-60">No description</span>}
         </p>
 
         {/* Bottom row */}
-        <div className="mt-5 flex items-center justify-between">
+        <div className="mt-4 flex items-center justify-between">
           <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
             {project.name.charAt(0).toUpperCase()}
           </div>
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
             Created {relativeTime(project.created_at)}
           </span>
         </div>

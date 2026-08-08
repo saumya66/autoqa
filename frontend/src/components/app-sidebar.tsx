@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Folder, FlaskConical, Play, PanelLeft, Settings } from 'lucide-react';
+import { Folder, PanelLeft, Settings } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   Sidebar,
@@ -21,8 +21,6 @@ import { useOnboardingStore } from '@/store/onboardingStore';
 
 const menuItems = [
   { title: 'Projects', section: 'projects' as const, icon: Folder, to: '/app', requireAuth: true },
-  { title: 'Create Test', section: 'create' as const, icon: FlaskConical, to: '/app/create', requireAuth: false },
-  { title: 'Execute', section: 'execute' as const, icon: Play, to: '/app/execute', requireAuth: false },
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -45,7 +43,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar
       collapsible="icon"
-      className="group-data-[collapsible=icon]:cursor-pointer"
+      className="border-r border-[#ececf1] bg-white [--sidebar:#ffffff] **:data-[sidebar=sidebar]:bg-white! group-data-[collapsible=icon]:cursor-pointer"
       onClick={handleSidebarClick}
       {...props}
     >
@@ -55,9 +53,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild tooltip="Clariti">
                 <Link to={isAuthenticated ? '/app' : '/app/create'}>
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <FlaskConical className="size-4" />
-                  </div>
+                  <img src="/logo.png" alt="Clariti" className="aspect-square size-8 rounded-lg object-cover" />
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">Clariti</span>
                   </div>

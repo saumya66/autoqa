@@ -1,0 +1,51 @@
+---
+description: Visual language for the Clariti Electron app frontend only, excluding the marketing website
+globs: frontend/src/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Clariti Electron App Design Language
+
+Apply this rule only to the Electron app in `frontend/`. Do not apply it to `landingsite/` or other website/marketing UI.
+
+## Visual Direction
+
+- Use an editorial, quiet interface: generous whitespace, compact controls, thin borders, and subtle elevation.
+- Use `font-serif` only for high-emphasis page headings and motivational/empty-state copy. Keep labels, controls, and body copy sans-serif.
+- The canonical app heading style is `font-serif text-3xl font-light tracking-tight text-foreground` (used by “Projects”); apply it to titles that should match that hierarchy, including the Create Project dialog title.
+- Prefer rounded `lg`/`xl` cards and controls. Avoid heavy gradients or decorative backgrounds unless the user supplies an asset or requests one.
+
+## Surfaces and Colors
+
+- App content canvas: `#fafafd`.
+- Sidebar and cards: pure white (`#ffffff`).
+- Separators and card borders: `#ececf1`.
+- Soft form/control fill: `#f5f5f8`.
+- Primary dark text and CTA: `#111114` / `#15151b`; hover CTA: `#29292f`.
+- Use existing pastel icon/status colors sparingly for semantic distinction.
+
+## Layout and Assets
+
+- Maintain a clearly separated white sidebar with a thin right border against the off-white content canvas.
+- Give cards a thin border and soft shadow, such as `shadow-[0_2px_8px_rgba(15,15,25,0.05)]`.
+- Use `/logo.png` for Clariti product branding; do not substitute a generic flask icon for a brand mark.
+- Keep functional icons for actions such as Create Test, Execute, and project status.
+
+## Modals
+
+- Use a structured three-region layout for form modals: a bordered header (`px-6 py-5`), a padded body (`px-6 py-5`), and a bordered action footer (`px-6 py-4`).
+- Set structured `DialogContent` to `gap-0 p-0`, then apply spacing within each region; do not rely on the dialog's default padding and gap.
+- Modal titles use `font-serif text-2xl font-light`; descriptions remain compact sans-serif text.
+- Keep primary modal actions dark (`bg-[#111114] hover:bg-[#29292f]`) and secondary actions outlined.
+- For long read-only content, cap the dialog at `max-h-[80vh]` and make only its body scrollable. Keep the title/header fixed.
+- On cards, cap long previews at `max-h-56 overflow-hidden`, add a subtle bottom fade, and provide a “View full …” action that opens the read-only dialog.
+
+## Example
+
+```tsx
+<DialogContent className="max-w-lg gap-0 p-0">
+  <DialogHeader className="border-b border-[#ececf1] px-6 py-5" />
+  <div className="px-6 py-5">{/* form fields */}</div>
+  <DialogFooter className="border-t border-[#ececf1] px-6 py-4" />
+</DialogContent>
+```

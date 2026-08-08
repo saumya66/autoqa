@@ -1,11 +1,9 @@
 import * as React from 'react';
 import {
   Search,
-  ChevronDown,
   LayoutGrid,
   List,
   Plus,
-  ArrowDownUp,
   Image,
   MessageSquare,
   Trash2,
@@ -15,12 +13,6 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -82,85 +74,74 @@ export function ProjectsSection() {
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto p-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#fafafd] p-5 sm:p-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Projects</h1>
+        <div>
+          <h1 className="font-serif text-3xl font-light tracking-tight text-foreground">Projects</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            All your projects in one place. Stay organized and ship with confidence.
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => clearAuth()}
-          className="text-muted-foreground"
+          className="text-xs font-medium text-foreground hover:bg-muted"
         >
           Sign out
         </Button>
       </div>
 
       {/* Top bar: search, filters, view toggles, new project */}
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="mt-8 flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative min-w-50 max-w-md flex-1">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative min-w-50 max-w-54">
+          <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search for a project"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="h-9 rounded-lg border-[#e7e7ed] bg-white pl-9 text-xs shadow-sm placeholder:text-muted-foreground"
           />
         </div>
-
-        {/* Sort button */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <ArrowDownUp className="size-4" />
-              Sorted by name
-              <ChevronDown className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem>Name</DropdownMenuItem>
-            <DropdownMenuItem>Date created</DropdownMenuItem>
-            <DropdownMenuItem>Last updated</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
 
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* View toggles */}
-        <div className="flex items-center rounded-md border border-border p-0.5">
+        <div className="flex items-center rounded-lg border border-[#e7e7ed] bg-white p-0.5 shadow-sm">
           <button
             type="button"
             onClick={() => setViewMode('grid')}
             className={cn(
-              'rounded p-1.5 transition-colors',
+              'rounded-md p-1.5 transition-colors',
               viewMode === 'grid'
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             )}
             aria-label="Grid view"
           >
-            <LayoutGrid className="size-4" />
+            <LayoutGrid className="size-3.5" />
           </button>
           <button
             type="button"
             onClick={() => setViewMode('list')}
             className={cn(
-              'rounded p-1.5 transition-colors',
+              'rounded-md p-1.5 transition-colors',
               viewMode === 'list'
                 ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             )}
             aria-label="List view"
           >
-            <List className="size-4" />
+            <List className="size-3.5" />
           </button>
         </div>
 
         {/* New project button */}
-        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-          <Plus className="size-4" />
+        <Button size="sm" className="h-9 gap-1.5 rounded-lg bg-[#111114] px-4 text-xs hover:bg-[#29292f]" onClick={() => setCreateOpen(true)}>
+          <Plus className="size-3.5" />
           New project
         </Button>
       </div>
@@ -184,7 +165,7 @@ export function ProjectsSection() {
           className={cn(
             'mt-6 gap-4',
             viewMode === 'grid'
-              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+              ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'
               : 'flex flex-col'
           )}
         >
@@ -213,6 +194,30 @@ export function ProjectsSection() {
         <p className="mt-8 text-center text-muted-foreground">
           No projects found. Try a different search or create a new project.
         </p>
+      )}
+
+      {!loading && !error && (
+        <section className="mt-10 flex flex-col items-center px-4 pb-2 pt-8 text-center sm:mt-12 sm:pt-10">
+          <img
+            src="/projects-footer.png"
+            alt=""
+            className="w-48 max-w-full object-contain sm:w-56"
+          />
+          <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">
+            Start your next project!
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            "The best way to predict the future is to invent it." - Alan Kay
+          </p>
+          <Button
+            size="sm"
+            className="mt-4 h-9 gap-1.5 rounded-lg bg-[#111114] px-4 text-xs hover:bg-[#29292f]"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="size-3.5" />
+            New project
+          </Button>
+        </section>
       )}
 
       {/* Create project dialog */}
@@ -257,7 +262,7 @@ export function ProjectsSection() {
   );
 }
 
-// ─── Create Project Dialog ──────────────────────────────────────────────────
+// ??? Create Project Dialog ??????????????????????????????????????????????????
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -311,7 +316,7 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
       if (f.size > MAX) { skipped++; continue; }
       valid.push({ id: `${Date.now()}-${f.name}`, file: f });
     }
-    if (skipped) setSizeError(`${skipped} file(s) skipped — max 10 MB each.`);
+    if (skipped) setSizeError(`${skipped} file(s) skipped � max 10 MB each.`);
     else setSizeError(null);
     setStagedImages((prev) => [...prev, ...valid]);
   };
@@ -338,50 +343,50 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>New project</DialogTitle>
+      <DialogContent className="project-create-dialog max-h-[90vh] max-w-2xl overflow-hidden rounded-2xl border-[#ececf1] bg-white p-0 shadow-2xl [&>div:first-child]:overflow-y-auto">
+        <DialogHeader className="border-b border-[#ececf1] px-7 pb-5 pt-6">
+          <DialogTitle className="font-serif text-3xl font-light tracking-tight text-foreground">Create new project</DialogTitle>
+          <p className="text-xs leading-5 text-muted-foreground">
+            Provide a few details so Clariti can understand your product.
+          </p>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Name */}
-          <div>
-            <Label htmlFor="cp-name">Name *</Label>
-            <Input
-              id="cp-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Project name"
-              className="mt-1"
-              disabled={isLoading}
-            />
+        <form onSubmit={handleSubmit} className="space-y-6 px-7 py-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="cp-name" className="text-xs font-medium text-[#25252c]">Project name <span className="text-destructive">*</span></Label>
+              <Input
+                id="cp-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter project name"
+                className="mt-2 h-10 border-[#dcd8f4] bg-white px-3 text-xs shadow-sm placeholder:text-[10px] placeholder:text-slate-400 focus-visible:ring-violet-400"
+                disabled={isLoading}
+              />
+            </div>
+            <div>
+              <Label htmlFor="cp-desc" className="text-xs font-medium text-[#25252c]">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Input
+                id="cp-desc"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief description of your project"
+                className="mt-2 h-10 border-[#e7e7ed] bg-white px-3 text-xs shadow-sm placeholder:text-[10px] placeholder:text-slate-400 focus-visible:ring-violet-400"
+                disabled={isLoading}
+              />
+            </div>
           </div>
 
-          {/* Description */}
-          <div>
-            <Label htmlFor="cp-desc">Description (optional)</Label>
-            <Input
-              id="cp-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description"
-              className="mt-1"
-              disabled={isLoading}
-            />
-          </div>
+          <section>
+            <Label className="text-xs font-medium text-[#25252c]">Context assets</Label>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Add information that will help Clariti understand your project better.
+            </p>
 
-          {/* Context (optional) */}
-          <div className="space-y-3">
-            <Label className="flex items-center gap-1.5">
-              Context Assets
-              <span className="text-xs font-normal text-muted-foreground">(optional — used by AI to understand your project)</span>
-            </Label>
-
-            <div className="grid grid-cols-2 gap-3">
-              {/* Image upload */}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className={cn(
-                'group flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-4 text-center cursor-pointer transition-colors',
-                isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary/50 hover:bg-muted/50'
+                'group flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-[#dfe0e9] bg-white p-4 text-center transition-colors sm:order-2',
+                isLoading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-violet-300 hover:bg-violet-50/30'
               )}>
                 <input
                   type="file"
@@ -391,74 +396,65 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
                   onChange={(e) => handleImageSelect(e.target.files)}
                   disabled={isLoading}
                 />
-                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <Image className="w-4 h-4 text-primary" />
+                <div className="flex size-9 items-center justify-center rounded-full bg-violet-100 text-violet-500">
+                  <Image className="size-4" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Images</p>
-                  <p className="text-xs text-muted-foreground">Screenshots, mockups</p>
-                </div>
+                <p className="mt-3 text-xs font-semibold text-foreground">Upload images</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Common, show Clariti your app too!</p>
+                <p className="mt-2 text-[10px] text-muted-foreground">Drag & drop or click to upload</p>
               </label>
 
-              {/* Text note */}
-              <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+              <div className="flex min-h-36 flex-col rounded-xl border border-[#e7e7ed] bg-white p-3 sm:order-1">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
-                    <MessageSquare className="w-3 h-3 text-amber-400" />
+                  <div className="flex size-6 items-center justify-center rounded-md bg-amber-100 text-amber-500">
+                    <MessageSquare className="size-3" />
                   </div>
-                  <p className="text-sm font-medium text-foreground">Text notes</p>
+                  <div>
+                    <p className="text-xs font-semibold text-foreground">Text context</p>
+                    <p className="text-[10px] text-muted-foreground">Help Clariti understand your product, flows, what it does and how it works.</p>
+                  </div>
                 </div>
                 <textarea
                   value={currentNote}
                   onChange={(e) => setCurrentNote(e.target.value)}
-                  placeholder="Product description, key flows..."
-                  rows={2}
+                  placeholder="Write here..."
+                  rows={3}
                   disabled={isLoading}
-                  className="w-full px-2 py-1.5 bg-background border border-input rounded text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-ring resize-none"
+                  className="mt-3 min-h-15 w-full resize-none rounded-lg border border-[#e7e7ed] bg-[#fafafd] px-2.5 py-2 text-xs text-foreground placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:cursor-not-allowed"
                 />
                 <button
                   type="button"
                   onClick={handleAddNote}
                   disabled={!currentNote.trim() || isLoading}
-                  className="flex items-center justify-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 disabled:opacity-50 text-xs text-foreground rounded transition-colors"
+                  className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-[#111114] text-[10px] font-medium text-white hover:bg-[#29292f] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Plus className="w-3 h-3" /> Add
+                  <Plus className="size-3" />
+                  Add context
                 </button>
               </div>
             </div>
 
-            {/* Staged assets list */}
             {hasContext && (
-              <div className="rounded-lg border border-border divide-y divide-border">
+              <div className="mt-3 overflow-hidden rounded-xl border border-[#e7e7ed] bg-white">
                 {stagedImages.map((img) => (
-                  <div key={img.id} className="flex items-center gap-3 px-3 py-2">
-                    <Image className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <span className="flex-1 text-sm text-foreground truncate">{img.file.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {(img.file.size / 1024 / 1024).toFixed(1)} MB
-                    </span>
+                  <div key={img.id} className="flex items-center gap-3 border-b border-[#ececf1] px-3 py-2 last:border-0">
+                    <Image className="size-3.5 shrink-0 text-violet-500" />
+                    <span className="flex-1 truncate text-[11px] text-foreground">{img.file.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{(img.file.size / 1024 / 1024).toFixed(1)} MB</span>
                     {!isLoading && (
-                      <button
-                        type="button"
-                        onClick={() => setStagedImages((p) => p.filter((i) => i.id !== img.id))}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <button type="button" onClick={() => setStagedImages((p) => p.filter((i) => i.id !== img.id))} className="text-muted-foreground hover:text-destructive">
+                        <Trash2 className="size-3.5" />
                       </button>
                     )}
                   </div>
                 ))}
                 {textNotes.map((note, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-3 py-2">
-                    <MessageSquare className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="flex-1 text-sm text-foreground truncate">{note}</span>
+                  <div key={`${note}-${idx}`} className="flex items-center gap-3 border-b border-[#ececf1] px-3 py-2 last:border-0">
+                    <MessageSquare className="size-3.5 shrink-0 text-amber-500" />
+                    <span className="flex-1 truncate text-[11px] text-foreground">{note}</span>
                     {!isLoading && (
-                      <button
-                        type="button"
-                        onClick={() => setTextNotes((p) => p.filter((_, i) => i !== idx))}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
+                      <button type="button" onClick={() => setTextNotes((p) => p.filter((_, i) => i !== idx))} className="text-muted-foreground hover:text-destructive">
+                        <Trash2 className="size-3.5" />
                       </button>
                     )}
                   </div>
@@ -467,56 +463,52 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
             )}
 
             {sizeError && (
-              <p className="flex items-center gap-1.5 text-xs text-destructive">
-                <AlertCircle className="w-3.5 h-3.5" /> {sizeError}
+              <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
+                <AlertCircle className="size-3.5" /> {sizeError}
               </p>
             )}
 
             {hasContext && !isLoading && (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                AI will analyse these assets and build a project context summary.
+              <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <CheckCircle className="size-3.5 text-emerald-500" />
+                Clariti will analyze these assets and build a project context summary.
               </p>
             )}
-          </div>
+          </section>
 
           <div>
-            <Label htmlFor="cp-memory">App memory (optional)</Label>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <Label htmlFor="cp-memory" className="text-xs font-medium text-[#25252c]">Memory <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <p className="mt-1 text-[11px] text-muted-foreground">
               Add app-wide structure, navigation, business rules, safety constraints, or known quirks.
             </p>
             <textarea
               id="cp-memory"
               value={sourceMemory}
               onChange={(e) => setSourceMemory(e.target.value)}
-              placeholder={'Example:\n- Cart bill details are below recommendations\n- Cart state persists between runs\n- Never place an order during tests'}
-              rows={5}
+              placeholder={'Examples:\n- Cart bill details are below recommendations\n- Cart state persists between runs\n- Never place an order during tests'}
+              rows={4}
               disabled={isLoading}
-              className="mt-2 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 w-full resize-y rounded-xl border-0 bg-[#f5f5f8] px-3 py-2.5 text-xs leading-5 text-foreground placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
-          {/* Loading state with live SSE progress */}
           {isLoading && (
             <div className={cn(
-              "flex items-center gap-2 rounded-lg px-3 py-2 text-sm border",
+              'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs',
               progressMessage?.startsWith('Error:')
-                ? "bg-destructive/5 border-destructive/20 text-destructive"
-                : "bg-primary/5 border-primary/20 text-primary"
+                ? 'border-destructive/20 bg-destructive/5 text-destructive'
+                : 'border-violet-200 bg-violet-50 text-violet-700'
             )}>
-              {progressMessage?.startsWith('Error:')
-                ? <AlertCircle className="w-4 h-4 shrink-0" />
-                : <Loader className="w-4 h-4 animate-spin shrink-0" />
-              }
+              {progressMessage?.startsWith('Error:') ? <AlertCircle className="size-4 shrink-0" /> : <Loader className="size-4 shrink-0 animate-spin" />}
               {progressMessage ?? (hasContext ? 'Processing assets...' : 'Creating project...')}
             </div>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={isLoading}>
+          <DialogFooter className="border-t border-[#ececf1] pt-5">
+            <Button type="button" variant="outline" className="h-9 border-[#e7e7ed] bg-white text-xs hover:bg-muted" onClick={() => handleClose(false)} disabled={isLoading}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || isLoading}>
+            <Button type="submit" className="h-9 bg-[#111114] text-xs hover:bg-[#29292f]" disabled={!name.trim() || isLoading}>
               {isLoading ? 'Creating...' : 'Create project'}
             </Button>
           </DialogFooter>
@@ -526,7 +518,7 @@ function CreateProjectDialog({ open, onOpenChange, onSubmit, isLoading, progress
   );
 }
 
-// ─── Edit Project Dialog ─────────────────────────────────────────────────────
+// ??? Edit Project Dialog ?????????????????????????????????????????????????????
 interface EditProjectDialogProps {
   project: Project | null;
   onOpenChange: (open: boolean) => void;

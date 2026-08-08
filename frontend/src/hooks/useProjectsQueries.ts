@@ -176,8 +176,9 @@ export function useUpdateProject() {
       projectId: string;
       input: ProjectUpdateInput;
     }) => updateProject(projectId, input),
-    onSuccess: () => {
+    onSuccess: (_project, variables) => {
       queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+      queryClient.invalidateQueries({ queryKey: projectQueryKey(variables.projectId) });
     },
   });
 }
@@ -363,14 +364,12 @@ export function useUpdateProjectContext(projectId: string) {
     mutationFn: ({
       images,
       texts,
-      sourceMemory,
       callbacks,
     }: {
       images: File[];
       texts: string[];
-      sourceMemory?: string;
       callbacks: CloudContextUpdateCallbacks;
-    }) => updateProjectContext(projectId, images, texts, sourceMemory, callbacks),
+    }) => updateProjectContext(projectId, images, texts, callbacks),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
       queryClient.invalidateQueries({ queryKey: contextItemsQueryKey(projectId) });

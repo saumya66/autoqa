@@ -366,19 +366,17 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
   // Render
   // =========================================================================
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden">
+    <div className="relative flex h-full min-h-0 flex-1 items-stretch overflow-hidden bg-white">
 
       {/* ── Left sidebar ──────────────────────────────────────────── */}
-      <div className="w-52 shrink-0 flex flex-col border-r border-border bg-muted/20 p-5 gap-0">
+      <aside className="flex w-48 shrink-0 self-stretch flex-col border-r border-[#ececf1] bg-[#fafafd] p-5">
 
         {/* Brand */}
-        <div className="flex items-center gap-2.5 mb-8">
-          <div className="size-8 rounded-lg bg-primary flex items-center justify-center shadow-sm shrink-0">
-            <Sparkles className="size-4 text-primary-foreground" />
-          </div>
+        <div className="mb-8 flex items-center gap-2.5">
+          <img src="/logo.png" alt="Clariti" className="size-7 shrink-0 object-contain" />
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground leading-none">Clariti</p>
-            <p className="text-sm font-semibold text-foreground leading-snug">New Suite</p>
+            <p className="text-xs leading-none text-muted-foreground">Clariti</p>
+            <p className="text-sm font-semibold leading-snug text-foreground">New Test Suite</p>
           </div>
         </div>
 
@@ -391,8 +389,8 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
               <div key={s.key} className="flex items-start gap-3">
                 <div className="flex flex-col items-center">
                   <div className={cn(
-                    'size-5 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-all mt-0.5',
-                    isCurrent  ? 'bg-primary text-primary-foreground ring-2 ring-primary/20' :
+                    'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-all',
+                    isCurrent  ? 'bg-violet-500 text-white ring-2 ring-violet-500/20' :
                     isCompleted ? 'bg-green-500 text-white' :
                                   'bg-muted text-muted-foreground border border-border'
                   )}>
@@ -404,14 +402,14 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
                 </div>
                 <div className={cn('pb-4', idx === STEPS.length - 1 && 'pb-0')}>
                   <p className={cn(
-                    'text-sm font-medium leading-none mt-0.5',
+                    'mt-0.5 text-sm font-medium leading-none',
                     isCurrent  ? 'text-foreground' :
                     isCompleted ? 'text-muted-foreground' : 'text-muted-foreground/50'
                   )}>
                     {s.label}
                   </p>
                   {isCurrent && (
-                    <p className="text-xs text-muted-foreground mt-1 leading-snug">{s.desc}</p>
+                    <p className="mt-1 text-xs leading-snug text-muted-foreground">{s.desc}</p>
                   )}
                 </div>
               </div>
@@ -422,26 +420,36 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
         {/* Feature info card (shown once name is set) */}
         {featureName && step !== 'create' && (
           <div className="mt-auto pt-4">
-            <div className="rounded-lg border border-border bg-card/60 p-3">
-              <p className="text-xs text-muted-foreground mb-0.5">Suite</p>
-              <p className="text-sm font-medium text-foreground truncate">{featureName}</p>
+            <div className="rounded-lg border border-[#ececf1] bg-white p-3 shadow-[0_2px_8px_rgba(15,15,25,0.04)]">
+              <p className="mb-0.5 text-xs text-muted-foreground">Suite</p>
+              <p className="truncate text-sm font-medium text-foreground">{featureName}</p>
               {featureDescription && (
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{featureDescription}</p>
               )}
             </div>
           </div>
         )}
-      </div>
+      </aside>
 
       {/* ── Right content ─────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto">
-        <div className="p-6 max-w-lg">
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 top-4 z-10 flex size-7 items-center justify-center rounded-full bg-[#f5f5f8] text-muted-foreground hover:bg-[#ececf1] hover:text-foreground"
+            aria-label="Close new test suite"
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
+        <div className="mx-auto w-full max-w-2xl p-8 pr-12">
 
           {/* ──────────── Step 1: Name ──────────── */}
           {step === 'create' && (
             <div>
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-foreground">Name your test suite</h2>
+                <h2 className="font-serif text-2xl font-light text-foreground">Let&apos;s name your test suite</h2>
                 <p className="text-sm text-muted-foreground mt-1">Give this suite a name that reflects the feature you're testing.</p>
               </div>
 
@@ -480,17 +488,19 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
                 )}
               </div>
 
-              <button
-                onClick={handleCreateContext}
-                disabled={!featureName.trim() || isCreating}
-                className="mt-6 w-full py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                {isCreating ? (
-                  <><Loader className="size-4 animate-spin" /> Creating suite…</>
-                ) : (
-                  <>Continue <ArrowRight className="size-4" /></>
-                )}
-              </button>
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={handleCreateContext}
+                  disabled={!featureName.trim() || isCreating}
+                  className="flex w-fit items-center justify-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#29292f] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isCreating ? (
+                    <><Loader className="size-4 animate-spin" /> Creating suite…</>
+                  ) : (
+                    <>Continue <ArrowRight className="size-4" /></>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -498,7 +508,7 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
           {step === 'select' && (
             <div>
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-foreground">Add context</h2>
+                <h2 className="font-serif text-2xl font-light text-foreground">Add context to help AI understand</h2>
                 <p className="text-sm text-muted-foreground mt-1">Upload screenshots or add text notes. AI uses these to generate relevant test cases.</p>
               </div>
 
@@ -606,17 +616,22 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
                 </div>
               )}
 
-              <button
-                onClick={() => handleBuildContext()}
-                disabled={totalAssets === 0 || isBuilding}
-                className="w-full py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                {isBuilding ? (
-                  <><Loader className="size-4 animate-spin" /> {progressMessage || 'Analysing assets…'}</>
-                ) : (
-                  <><Sparkles className="size-4" /> Build context · {totalAssets} asset{totalAssets !== 1 ? 's' : ''}</>
-                )}
-              </button>
+              <div className="mt-6 flex items-center justify-between">
+                <button onClick={() => setStep('create')} className="rounded-lg border border-[#ececf1] bg-white px-4 py-2.5 text-sm font-medium text-foreground hover:bg-[#f5f5f8]">
+                  Back
+                </button>
+                <button
+                  onClick={() => handleBuildContext()}
+                  disabled={totalAssets === 0 || isBuilding}
+                  className="flex w-fit items-center justify-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#29292f] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isBuilding ? (
+                    <><Loader className="size-4 animate-spin" /> {progressMessage || 'Analysing assets…'}</>
+                  ) : (
+                    <>Continue <ArrowRight className="size-4" /></>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -628,7 +643,7 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
                   <div className="size-5 rounded-full bg-green-500/15 flex items-center justify-center">
                     <Check className="size-3 text-green-500" />
                   </div>
-                  <h2 className="text-xl font-bold text-foreground">Context ready</h2>
+                  <h2 className="font-serif text-2xl font-light text-foreground">AI has analyzed your context</h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {contextResult.hasFeedback ? 'Regenerated with your feedback.' : 'AI has analysed your assets.'} Review below then generate tests.
@@ -691,17 +706,22 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
                 </div>
               )}
 
-              <button
-                onClick={() => handleGenerateTests()}
-                disabled={isGenerating || isRegenerating}
-                className="w-full py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                {isGenerating ? (
-                  <><Loader className="size-4 animate-spin" /> {progressMessage || 'Generating tests…'}</>
-                ) : (
-                  <><Sparkles className="size-4" /> Awesome! Generate Tests</>
-                )}
-              </button>
+              <div className="mt-6 flex items-center justify-between">
+                <button onClick={() => setStep('select')} className="rounded-lg border border-[#ececf1] bg-white px-4 py-2.5 text-sm font-medium text-foreground hover:bg-[#f5f5f8]">
+                  Back
+                </button>
+                <button
+                  onClick={() => handleGenerateTests()}
+                  disabled={isGenerating || isRegenerating}
+                  className="flex w-fit items-center justify-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#29292f] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isGenerating ? (
+                    <><Loader className="size-4 animate-spin" /> {progressMessage || 'Generating tests…'}</>
+                  ) : (
+                    <>Looks good, continue <ArrowRight className="size-4" /></>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 
@@ -709,7 +729,7 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
           {step === 'review' && testPlan && (
             <div>
               <div className="mb-5">
-                <h2 className="text-xl font-bold text-foreground">{testPlan.test_count} tests generated</h2>
+                <h2 className="font-serif text-2xl font-light text-foreground">{testPlan.test_count} test cases ready!</h2>
                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{testPlan.feature_summary}</p>
               </div>
 
@@ -858,17 +878,22 @@ export function CreateTestFlow({ onClose, projectId }: CreateTestFlowProps) {
                 </div>
               )}
 
-              <button
-                onClick={handleSave}
-                disabled={selectedTests.size === 0 || isApproving}
-                className="w-full py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
-              >
-                {isApproving ? (
-                  <><Loader className="size-4 animate-spin" /> Saving…</>
-                ) : (
-                  <><Check className="size-4" /> All Good, Save {selectedTests.size} Test{selectedTests.size !== 1 ? 's' : ''}</>
-                )}
-              </button>
+              <div className="mt-6 flex items-center justify-between">
+                <button onClick={() => setStep('summary')} className="rounded-lg border border-[#ececf1] bg-white px-4 py-2.5 text-sm font-medium text-foreground hover:bg-[#f5f5f8]">
+                  Back
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={selectedTests.size === 0 || isApproving}
+                  className="flex w-fit items-center justify-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#29292f] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isApproving ? (
+                    <><Loader className="size-4 animate-spin" /> Saving…</>
+                  ) : (
+                    <><Check className="size-4" /> Save {selectedTests.size} Tests</>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 

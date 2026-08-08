@@ -2727,6 +2727,7 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                 from cloud_client import get_feature as cloud_get_feature
                 feat = await asyncio.to_thread(cloud_get_feature, request.cloud_feature_id, token=request.cloud_token)
                 project_context_str = ""
+                project_owner_memory_str = ""
                 feature_context_str = ""
 
                 if feat:
@@ -2753,6 +2754,14 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                                     print(f"[DEBUG] Project context_summary length: {len(learning_project_context)} chars")
                                 else:
                                     print(f"[DEBUG] Project fetched but has no context_summary")
+                                project_owner_memory = (proj.get("source_memory") or "").strip()
+                                if project_owner_memory:
+                                    project_owner_memory_str = (
+                                        "Memory Data added by owner:\n"
+                                        f"{project_owner_memory}\n"
+                                        "Use this as background knowledge to make decisions while testing."
+                                    )
+                                    print(f"[DEBUG] Project source_memory length: {len(project_owner_memory)} chars")
                             else:
                                 print(f"[DEBUG] Project fetch returned None — learning disabled")
                         except Exception as e:
@@ -2762,7 +2771,9 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                 else:
                     print(f"[DEBUG] Feature fetch returned None — no context available")
 
-                context_block = "\n\n".join(filter(None, [project_context_str, feature_context_str]))
+                context_block = "\n\n".join(
+                    filter(None, [project_context_str, project_owner_memory_str, feature_context_str])
+                )
                 if context_block:
                     context_block = f"\n\n{context_block}"
                     print(f"[DEBUG] Combined context block length: {len(context_block)} chars")
@@ -2786,7 +2797,11 @@ async def execute_tests_stream(context_id: str, request: ExecuteTestsRequest):
                     + BATCHING_INSTRUCTIONS
                 )
                 print(f"[DEBUG] System prompt ready — total length: {len(cu_system_prompt)} chars")
-                print(f"[DEBUG]   project_ctx={'✓' if project_context_str else '✗'}  feature_ctx={'✓' if feature_context_str else '✗'}")
+                print(
+                    f"[DEBUG]   project_ctx={'✓' if project_context_str else '✗'}  "
+                    f"owner_memory={'✓' if project_owner_memory_str else '✗'}  "
+                    f"feature_ctx={'✓' if feature_context_str else '✗'}"
+                )
                 print(f"[DEBUG] ── System prompt content ──\n{cu_system_prompt}\n[DEBUG] ── End system prompt ──")
             except Exception as e:
                 print(f"[DEBUG] ✗ Failed to build system prompt: {e}")

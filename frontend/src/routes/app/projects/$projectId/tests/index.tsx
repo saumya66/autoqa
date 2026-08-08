@@ -37,31 +37,31 @@ function relativeTime(dateStr: string) {
 function StatusIndicator({ status }: { status: string }) {
   if (status === 'tests_generated') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-        <CheckCircle2 className="size-3.5" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700">
+        <CheckCircle2 className="size-3" />
         Tests ready
       </span>
     );
   }
   if (status === 'context_ready') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-        <CheckCircle2 className="size-3.5" />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-700">
+        <CheckCircle2 className="size-3" />
         Context ready
       </span>
     );
   }
   if (status === 'processing') {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-500">
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700">
         <Loader2 className="size-3.5 animate-spin" />
         Processing
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-      <Circle className="size-3.5" />
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f5f5f8] px-2.5 py-1 text-xs font-medium text-muted-foreground">
+      <Circle className="size-3" />
       Pending
     </span>
   );
@@ -73,17 +73,17 @@ function FeatureRow({ feature, projectId, index }: { feature: Feature; projectId
       to="/app/projects/$projectId/tests/$featureId"
       params={{ projectId, featureId: feature.id }}
       className={cn(
-        'group grid grid-cols-[1fr_auto_auto] items-center gap-6 px-6 py-4 transition-colors hover:bg-muted/40',
-        index !== 0 && 'border-t border-border'
+        'group grid grid-cols-[1fr_auto_auto_auto] items-center gap-5 px-6 py-4 transition-colors hover:bg-[#fafafd]',
+        index !== 0 && 'border-t border-[#ececf1]'
       )}
     >
       {/* Suite name + description */}
       <div className="flex items-center gap-4 min-w-0">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600">
           <FlaskConical className="size-4" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+          <p className="truncate text-sm font-semibold text-foreground transition-colors group-hover:text-violet-700">
             {feature.name}
           </p>
           {feature.description && (
@@ -92,14 +92,16 @@ function FeatureRow({ feature, projectId, index }: { feature: Feature; projectId
         </div>
       </div>
 
-      {/* Status + date */}
-      <div className="flex flex-col items-end gap-0.5 shrink-0 min-w-30">
+      {/* Status */}
+      <div className="shrink-0">
         <StatusIndicator status={feature.status} />
-        <span className="text-xs text-muted-foreground">{relativeTime(feature.created_at)}</span>
       </div>
 
+      {/* Created */}
+      <span className="min-w-14 text-right text-xs text-muted-foreground">{relativeTime(feature.created_at)}</span>
+
       {/* Chevron */}
-      <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-violet-600" />
     </Link>
   );
 }
@@ -113,7 +115,7 @@ function TestSuitesPage() {
   if (!project) return null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto p-6 max-w-4xl mx-auto w-full">
+    <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-auto p-6">
       {/* Breadcrumb */}
       <Breadcrumb className="mb-6">
         <BreadcrumbList>
@@ -146,7 +148,7 @@ function TestSuitesPage() {
       {/* Page header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Test Suites</h1>
+          <h1 className="font-serif text-3xl font-light tracking-tight text-foreground">Test Suites</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {loading ? (
               <span className="animate-pulse">Loading…</span>
@@ -160,7 +162,7 @@ function TestSuitesPage() {
         </div>
         <button
           onClick={() => setCreateTestOpen(true)}
-          className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md active:scale-95"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#29292f] active:scale-95"
         >
           <Plus className="size-4" />
           New Test Suite
@@ -169,10 +171,10 @@ function TestSuitesPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-[#ececf1] bg-white shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className={cn('flex items-center gap-4 px-6 py-4', i !== 0 && 'border-t border-border')}>
-              <div className="size-9 rounded-xl bg-muted animate-pulse shrink-0" />
+            <div key={i} className={cn('flex items-center gap-4 px-6 py-4', i !== 0 && 'border-t border-[#ececf1]')}>
+              <div className="size-9 shrink-0 animate-pulse rounded-xl bg-[#f5f5f8]" />
               <div className="flex-1 space-y-2">
                 <div className="h-3.5 w-48 rounded bg-muted animate-pulse" />
                 <div className="h-3 w-72 rounded bg-muted animate-pulse" />
@@ -181,8 +183,8 @@ function TestSuitesPage() {
           ))}
         </div>
       ) : features.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/50 p-16 text-center">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-[#d9d9e1] bg-white p-16 text-center">
+          <div className="flex size-16 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-600">
             <FlaskConical className="size-8" />
           </div>
           <h2 className="mt-5 text-base font-semibold text-foreground">No test suites yet</h2>
@@ -191,22 +193,23 @@ function TestSuitesPage() {
           </p>
           <button
             onClick={() => setCreateTestOpen(true)}
-            className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#111114] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#29292f]"
           >
             <Plus className="size-4" />
             Create First Suite
           </button>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-[#ececf1] bg-white shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_auto_auto] items-center gap-6 border-b border-border px-6 py-3">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-5 border-b border-[#ececf1] bg-[#fafafd] px-6 py-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Suite Name
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground min-w-30 text-right">
-              Status · Created
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Status
             </span>
+            <span className="min-w-14 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Created</span>
             <span className="w-4" />
           </div>
 
@@ -219,7 +222,7 @@ function TestSuitesPage() {
 
       {/* New Test Suite Dialog */}
       <Dialog open={createTestOpen} onOpenChange={setCreateTestOpen}>
-        <DialogContent className="max-w-4xl max-h-[88vh] min-h-135 w-[95vw] overflow-hidden flex flex-col p-0">
+        <DialogContent className="h-[min(88vh,540px)] max-w-4xl w-[95vw] overflow-hidden p-0">
           <div className="flex flex-1 min-h-0 overflow-hidden">
             <CreateTestFlow onClose={() => { setCreateTestOpen(false); refetch(); }} projectId={projectId} />
           </div>

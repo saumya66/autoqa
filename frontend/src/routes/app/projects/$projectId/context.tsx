@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, redirect } from '@tanstack/react-router';
 import {
   BookText,
   RefreshCw,
@@ -34,10 +34,16 @@ import {
   useProjectContextItems,
   useUpdateProjectContext,
 } from '@/hooks/useProjectsQueries';
-import { updateProjectContext, type CloudContextItem } from '@/api/client';
+import { type CloudContextItem } from '@/api/client';
 import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/app/projects/$projectId/context')({
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/app/projects/$projectId',
+      params: { projectId: params.projectId },
+    });
+  },
   component: ProjectContextPage,
 });
 
@@ -77,23 +83,20 @@ interface ProjectContextModalProps {
   projectId: string;
   existingImages: CloudContextItem[];
   existingTexts: CloudContextItem[];
-  sourceMemory?: string | null;
   onSuccess: () => void;
 }
 
-function ProjectContextModal({
+export function ProjectContextModal({
   open,
   onOpenChange,
   projectId,
   existingImages,
   existingTexts,
-  sourceMemory,
   onSuccess,
 }: ProjectContextModalProps) {
   const updateContextMutation = useUpdateProjectContext(projectId);
   const [images, setImages] = React.useState<StagedImage[]>([]);
   const [texts, setTexts] = React.useState<string[]>(['']);
-  const [memory, setMemory] = React.useState('');
   const [isDragging, setIsDragging] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [progressMessages, setProgressMessages] = React.useState<string[]>([]);
@@ -123,8 +126,7 @@ function ProjectContextModal({
       .filter((item) => item.content)
       .map((item) => item.content!);
     setTexts(prefilledTexts.length > 0 ? prefilledTexts : ['']);
-    setMemory(sourceMemory ?? '');
-  }, [open, existingImages, existingTexts, sourceMemory]);
+  }, [open, existingImages, existingTexts]);
 
   function addFiles(files: File[]) {
     const valid = files.filter((f) => {
@@ -185,7 +187,6 @@ function ProjectContextModal({
       await updateContextMutation.mutateAsync({
         images: imageFiles,
         texts: textValues,
-        sourceMemory: memory,
         callbacks: {
           onProgress: (msg) => setProgressMessages((prev) => [...prev, msg]),
           onDone: () => {
@@ -204,29 +205,31 @@ function ProjectContextModal({
     }
   }
 
-  const hasContent = images.length > 0 || texts.some((t) => t.trim().length > 0) || memory.trim().length > 0;
+  const hasContent = images.length > 0 || texts.some((t) => t.trim().length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] w-[95vw] max-w-2xl flex-col overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b border-border px-6 py-4">
-          <DialogTitle className="text-base font-semibold">
+      <DialogContent className="max-h-[90vh] w-[95vw] max-w-2xl gap-0 p-0">
+        <DialogHeader className="shrink-0 border-b border-[#ececf1] px-6 py-5">
+          <DialogTitle className="font-serif text-2xl font-light">
             {existingImages.length > 0 || existingTexts.length > 0
               ? 'Update Project Context'
               : 'Add Project Context'}
           </DialogTitle>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Upload screenshots or paste text notes. AI will generate a context summary used to produce better test cases.
+          <p className="text-sm text-muted-foreground">
+            Add the latest information about your product. Clariti will analyse it and generate an updated context summary to help create better test cases.
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+        <div className="flex-1 space-y-6 overflow-y-auto bg-white px-6 py-5">
           {/* Image upload */}
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <ImageIcon className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Screenshots</span>
-              <span className="text-xs text-muted-foreground">(max 10 MB each)</span>
+          <section>
+            <div className="mb-3 flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-[10px] font-semibold text-violet-600">1</span>
+              <div>
+                <p className="text-sm font-medium text-foreground">Add screenshots <span className="font-normal text-muted-foreground">(optional)</span></p>
+                <p className="text-xs text-muted-foreground">Upload images to help Clariti understand the UI, flows, and changes.</p>
+              </div>
             </div>
 
             {/* Drop zone */}
@@ -237,17 +240,20 @@ function ProjectContextModal({
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
               className={cn(
-                'flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors',
+                'flex w-full flex-col items-center gap-2 rounded-lg border border-dashed p-7 text-center transition-colors',
                 isDragging
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                  ? 'border-violet-500 bg-violet-500/5'
+                  : 'border-[#d9d9e1] bg-[#fafafd] hover:border-violet-400 hover:bg-violet-500/5'
               )}
             >
-              <Upload className="size-5 text-muted-foreground" />
+              <div className="flex size-8 items-center justify-center rounded-full bg-violet-500/10">
+                <Upload className="size-4 text-violet-600" />
+              </div>
               <p className="text-sm text-muted-foreground">
                 Drag & drop images here, or{' '}
-                <span className="font-medium text-primary">browse</span>
+                <span className="font-medium text-violet-600">browse</span>
               </p>
+              <p className="text-[11px] text-muted-foreground">PNG, JPG, WebP up to 10 MB each</p>
             </button>
             <input
               ref={fileInputRef}
@@ -262,7 +268,7 @@ function ProjectContextModal({
             {images.length > 0 && (
               <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {images.map((img) => (
-                  <div key={img.key} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
+                  <div key={img.key} className="group relative aspect-square overflow-hidden rounded-lg border border-[#ececf1] bg-[#f5f5f8]">
                     <img
                       src={img.previewUrl}
                       alt={img.filename}
@@ -279,31 +285,16 @@ function ProjectContextModal({
                 ))}
               </div>
             )}
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <BookText className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">App Memory</span>
-            </div>
-            <p className="mb-2 text-xs text-muted-foreground">
-              Durable app knowledge such as navigation, business rules, safety constraints, and known quirks.
-            </p>
-            <textarea
-              value={memory}
-              onChange={(e) => setMemory(e.target.value)}
-              placeholder={'Example:\n- Cart bill details appear below recommendations\n- Cart state persists between runs\n- Never place an order during tests'}
-              rows={5}
-              disabled={isSubmitting}
-              className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-            />
-          </div>
+          </section>
 
           {/* Text notes */}
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <FileText className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-foreground">Text Notes</span>
+          <section>
+            <div className="mb-3 flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-[10px] font-semibold text-violet-600">2</span>
+              <div>
+                <p className="text-sm font-medium text-foreground">Add text context <span className="font-normal text-muted-foreground">(optional)</span></p>
+                <p className="text-xs text-muted-foreground">Paste details, updates, or anything Clariti should know.</p>
+              </div>
             </div>
             <div className="space-y-2">
               {texts.map((text, idx) => (
@@ -317,7 +308,7 @@ function ProjectContextModal({
                     }}
                     placeholder="Describe a feature, user flow, or business rule…"
                     rows={3}
-                    className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="flex-1 resize-none rounded-lg border border-[#ececf1] bg-[#f5f5f8] px-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
                   />
                   {texts.length > 1 && (
                     <button
@@ -334,17 +325,23 @@ function ProjectContextModal({
                 type="button"
                 variant="outline"
                 size="sm"
+                className="border-[#d9d9e1] bg-white hover:bg-[#f5f5f8]"
                 onClick={() => setTexts((prev) => [...prev, ''])}
               >
                 <Plus className="size-3.5" />
-                Add note
+                Add context
               </Button>
             </div>
+          </section>
+
+          <div className="flex items-start gap-2 rounded-lg bg-violet-500/5 px-3 py-2.5 text-xs text-muted-foreground">
+            <Sparkles className="mt-0.5 size-3.5 shrink-0 text-violet-600" />
+            <p>Clariti will analyse all uploaded screenshots and notes to generate an improved context summary.</p>
           </div>
 
           {/* Progress / error */}
           {progressMessages.length > 0 && (
-            <div className="rounded-lg bg-muted/60 px-4 py-3 space-y-1">
+            <div className="space-y-1 rounded-xl border border-[#ececf1] bg-white px-4 py-3">
               {progressMessages.map((msg, i) => (
                 <p key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                   {i === progressMessages.length - 1 && isSubmitting && (
@@ -356,13 +353,13 @@ function ProjectContextModal({
             </div>
           )}
           {errorMessage && (
-            <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <p className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
               {errorMessage}
             </p>
           )}
         </div>
 
-        <div className="shrink-0 border-t border-border px-6 py-4 flex items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#ececf1] bg-white px-6 py-4">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -372,6 +369,7 @@ function ProjectContextModal({
           </Button>
           <Button
             onClick={handleSubmit}
+            className="bg-[#111114] hover:bg-[#29292f]"
             disabled={isSubmitting || !hasContent}
           >
             {isSubmitting ? (
@@ -382,7 +380,7 @@ function ProjectContextModal({
             ) : (
               <>
                 <Sparkles className="size-4" />
-                Generate Context
+                Generate context
               </>
             )}
           </Button>
@@ -635,7 +633,6 @@ function ProjectContextPage() {
         projectId={projectId}
         existingImages={existingImages}
         existingTexts={existingTexts}
-        sourceMemory={project.source_memory}
         onSuccess={handleContextSuccess}
       />
     </div>

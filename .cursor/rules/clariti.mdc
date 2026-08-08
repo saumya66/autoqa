@@ -183,7 +183,7 @@ Guest users can "skip" auth (`skipped = true` in authStore) but cannot use cloud
 
 ### Flow 2 — Project Creation
 
-User fills project name + description, uploads images/text, and can paste optional app memory → AI processes them:
+User fills project name + description and uploads images/text → AI processes the context assets:
 
 ```
 Frontend (ProjectsSection)
@@ -193,7 +193,7 @@ Frontend (ProjectsSection)
 Local Backend (/cloud/project/create)
   1. Save images + texts as ContextItems  →  POST /api/v1/context-items/bulk (cloud)
   2. Run ImageContextRetrieverAgent on each image  →  extract what each screen shows
-  3. Run _SynthAgent with all image contexts, text notes, and `source_memory`  →  produce context_summary prose
+  3. Run _SynthAgent with all image contexts and text notes  →  produce context_summary prose
   4. POST /api/v1/projects (cloud)  →  save { name, description, source_memory, context_summary }
   5. SSE done event  →  { project: { id, name, description, context_summary } }
 
@@ -207,22 +207,25 @@ Frontend
 
 ### Flow 3 — Project Context Update
 
-User revisits the project context page and uploads new/updated images + text, and can edit app memory:
+User revisits the project context page and uploads new/updated images + text:
 
 ```
-Frontend (/app/projects/$projectId/context)
+Frontend (/app/projects/$projectId overview → Update context modal)
   ↓  POST /cloud/project/{id}/update-context (local backend SSE)
 
 Local Backend
   1. Delete old ContextItems for this project  →  DELETE /api/v1/context-items/by-project/{id} (cloud)
   2. Save new ContextItems  →  POST /api/v1/context-items/bulk (cloud)
-  3. Fetch the current Project; use submitted `source_memory` or retain its existing value
-  4. Run ImageContextRetrieverAgent + _SynthAgent with new sources and the existing context as a baseline  →  new context_summary
-  5. PATCH /api/v1/projects/{id}  →  update source_memory and context_summary on cloud
-  6. SSE done event
+  3. Run ImageContextRetrieverAgent + _SynthAgent with the new sources  →  new context_summary
+  4. PATCH /api/v1/projects/{id}  →  update context_summary on cloud
+  5. SSE done event
 ```
 
+`source_memory` is updated independently with `PATCH /api/v1/projects/{id}` and does not regenerate `context_summary`.
+
 **Key file:** `backend/main.py` → `cloud_update_project_context` endpoint
+
+The standalone `/app/projects/{id}/context` route redirects to the project overview. Project context, context assets, and app memory are displayed on the project overview; only context assets open the regeneration modal.
 
 ---
 
@@ -334,10 +337,11 @@ Local Backend (/feature/{featureId}/execute  →  execute_tests_stream generator
 
   PRE-LOOP: Build Claude system prompt (once, before iterating tests)
     1. Fetch feature.context_summary from cloud
-    2. Fetch project.context_summary from cloud (via feature.project_id)
+    2. Fetch project.context_summary and source_memory from cloud (via feature.project_id)
     3. Construct cu_system_prompt:
        - Agent role + instructions
        - Project context block
+       - Project owner memory block (when present; background for app understanding and navigation)
        - Feature context block
        - Pre-authorisation of [OPERATOR-MSG] guidance channel
 

@@ -95,13 +95,13 @@ function TestCaseCard({ tc }: { tc: CloudTestCase }) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-border border-l-4 bg-card overflow-hidden transition-shadow hover:shadow-sm',
+        'overflow-hidden rounded-xl border border-[#ececf1] border-l-4 bg-white shadow-[0_2px_8px_rgba(15,15,25,0.04)] transition-shadow hover:shadow-[0_4px_12px_rgba(15,15,25,0.08)]',
         priorityAccentBorder(tc.priority)
       )}
     >
       <button
         onClick={() => setExpanded((p) => !p)}
-        className="w-full flex items-start gap-4 px-4 py-3.5 text-left hover:bg-muted/20 transition-colors"
+        className="flex w-full items-start gap-4 px-4 py-3.5 text-left transition-colors hover:bg-[#fafafd]"
       >
         <span className="shrink-0 font-mono text-[11px] font-semibold text-muted-foreground mt-0.5 w-12">
           {tc.test_key}
@@ -126,7 +126,13 @@ function TestCaseCard({ tc }: { tc: CloudTestCase }) {
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 pt-3 border-t border-border space-y-3">
+        <div className="space-y-3 border-t border-[#ececf1] px-4 pb-4 pt-3">
+          <div>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Test Objective
+            </p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{tc.goal}</p>
+          </div>
           {tc.expected_result && (
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
@@ -351,7 +357,7 @@ function FeatureDetailPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-auto p-6">
-      <div className="max-w-6xl mx-auto w-full">
+      <div className="mx-auto w-full max-w-6xl">
         {/* Breadcrumb */}
         <Breadcrumb className="mb-6">
           <BreadcrumbList>
@@ -388,9 +394,15 @@ function FeatureDetailPage() {
         {/* Page header */}
         <div className="mb-8 flex items-start justify-between gap-6">
           <div className="min-w-0">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground leading-tight">
+            <div className="mb-1 flex items-center gap-2">
+              <div className="flex size-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600">
+                <FlaskConical className="size-4" />
+              </div>
+              <h1 className="font-serif text-3xl font-light tracking-tight text-foreground leading-tight">
               {feature?.name ?? 'Test Suite'}
-            </h1>
+              </h1>
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Active</span>
+            </div>
             {feature?.description && (
               <p className="mt-2 text-sm text-muted-foreground max-w-xl leading-relaxed">
                 {feature.description}
@@ -401,7 +413,7 @@ function FeatureDetailPage() {
             <Link
               to="/app/projects/$projectId/tests/$featureId/runs"
               params={{ projectId, featureId }}
-              className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-primary/40 hover:text-foreground active:scale-95"
+              className="inline-flex items-center gap-2 rounded-lg border border-[#ececf1] bg-white px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-[#f5f5f8] hover:text-foreground active:scale-95"
             >
               <History className="size-3.5" />
               Past Runs
@@ -409,12 +421,28 @@ function FeatureDetailPage() {
             <button
               onClick={() => setRunModalOpen(true)}
               disabled={testCases.length === 0}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#111114] px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#29292f] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
             >
               <Play className="size-3.5 fill-current" />
               Run All Tests
             </button>
           </div>
+        </div>
+
+        <div className="mb-6 flex flex-wrap items-center gap-x-7 gap-y-3">
+          <div className="border-r border-[#ececf1] pr-7">
+            <p className="text-2xl font-light tabular-nums text-foreground">{testCases.length}</p>
+            <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Total tests</p>
+          </div>
+          {PRIORITY_META.map(({ key, label, dot }) => (
+            <div key={key} className="border-r border-[#ececf1] pr-7 last:border-r-0 last:pr-0">
+              <p className="text-2xl font-light tabular-nums text-foreground">{priorityCounts[key] ?? 0}</p>
+              <p className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                <span className={cn('size-1.5 rounded-full', dot)} />
+                {label.replace(' Priority', '')}
+              </p>
+            </div>
+          ))}
         </div>
 
         {/* Two-column layout */}
@@ -468,13 +496,13 @@ function FeatureDetailPage() {
           </div>
 
           {/* ── Right: sidebar ── */}
-          <div className="w-72 shrink-0 flex flex-col gap-4 sticky top-0">
+          <div className="sticky top-0 flex w-72 shrink-0 flex-col gap-4">
 
             {/* Suite Statistics card */}
             {loading ? (
               <SidebarSkeleton />
             ) : (
-              <div className="rounded-2xl border border-border bg-card p-5">
+              <div className="rounded-2xl border border-[#ececf1] bg-white p-5 shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-sm font-semibold text-foreground">Suite Statistics</span>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
@@ -484,7 +512,7 @@ function FeatureDetailPage() {
                 </div>
 
                 <div className="mb-4">
-                  <span className="text-5xl font-black text-foreground tabular-nums tracking-tighter leading-none">
+                  <span className="text-5xl font-light text-foreground tabular-nums tracking-tighter leading-none">
                     {testCases.length}
                   </span>
                   <span className="ml-2 text-sm font-medium text-muted-foreground">Total Tests</span>
@@ -513,7 +541,7 @@ function FeatureDetailPage() {
                 </div>
 
                 {feature?.context_summary && (
-                  <div className="mt-5 pt-4 border-t border-border">
+                  <div className="mt-5 border-t border-[#ececf1] pt-4">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
                       <Sparkles className="size-3" />
                       Context Summary
@@ -525,7 +553,7 @@ function FeatureDetailPage() {
                 )}
 
                 {feature?.updated_at && (
-                  <div className="mt-4 pt-3 border-t border-border flex items-center justify-between">
+                  <div className="mt-4 flex items-center justify-between border-t border-[#ececf1] pt-3">
                     <span className="text-[11px] text-muted-foreground">
                       Updated {relativeTime(feature.updated_at)}
                     </span>
@@ -539,7 +567,7 @@ function FeatureDetailPage() {
             )}
 
             {/* Past Runs card */}
-            <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="rounded-2xl border border-[#ececf1] bg-white p-5 shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold text-foreground">Past Runs</span>
                 <div className="flex size-7 items-center justify-center rounded-lg bg-muted">
@@ -548,7 +576,7 @@ function FeatureDetailPage() {
               </div>
 
               <div className="mb-4">
-                <span className="text-5xl font-black text-foreground tabular-nums tracking-tighter leading-none">
+                <span className="text-5xl font-light text-foreground tabular-nums tracking-tighter leading-none">
                   {runs.length}
                 </span>
                 <span className="ml-2 text-sm font-medium text-muted-foreground">
@@ -592,7 +620,7 @@ function FeatureDetailPage() {
               <Link
                 to="/app/projects/$projectId/tests/$featureId/runs"
                 params={{ projectId, featureId }}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border py-2 text-xs font-semibold text-foreground hover:bg-muted/50 hover:border-primary/40 transition-colors"
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-[#ececf1] py-2 text-xs font-semibold text-foreground transition-colors hover:bg-[#f5f5f8]"
               >
                 View All Runs
                 <ChevronRight className="size-3.5" />
