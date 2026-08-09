@@ -11,27 +11,30 @@ function ContextMock() {
   return (
     <AppWindow breadcrumb="clariti › context › new-project">
       <div className="p-5">
-        <div className="rounded-xl border border-dashed border-violet-400/30 bg-violet-500/[0.04] p-6 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-500/15 ring-1 ring-violet-400/25">
-            <svg viewBox="0 0 24 24" className="h-6 w-6 text-violet-300" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 16V4m0 0 4 4m-4-4L8 8" />
-              <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-            </svg>
+        <div className="rounded-xl border border-violet-400/25 bg-violet-500/4 p-4">
+          <p className="text-sm font-semibold text-white">Tell us about your app</p>
+          <p className="mt-0.5 text-[11px] text-violet-200/60">We’ll turn it into project context.</p>
+          <p className="mt-3 text-xs leading-relaxed text-white/60">
+            A B2B analytics dashboard for product teams. Users sign in with email + password, monitor
+            real-time usage, invite teammates, and manage billing through Stripe.
+          </p>
+        </div>
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/2 p-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold text-white/80">Always remember</p>
+            <p className="font-mono text-[9px] tracking-wider text-violet-300/70">MEMORY</p>
           </div>
-          <p className="mt-3 text-sm font-semibold text-white">Drop screenshots of your app</p>
-          <p className="mt-1 font-mono text-[11px] text-white/40">or paste a URL · describe it in plain English</p>
+          <p className="mt-0.5 text-[11px] text-white/40">Add known quirks and rules.</p>
+          <p className="mt-2 rounded-md bg-white/3 px-2.5 py-2 text-[11px] leading-relaxed text-white/55">
+            The upgrade modal only appears for trial users.
+          </p>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {['dashboard.png', 'checkout.png', 'settings.png'].map((f) => (
-            <span key={f} className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 font-mono text-[11px] text-white/50">
-              <span className="h-2 w-2 rounded-sm bg-violet-400/50" /> {f}
-            </span>
-          ))}
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-white/40">Add a URL or screenshots <span className="text-white/25">· Optional</span></p>
+          <span className="shrink-0 rounded-md border border-white/10 bg-white/3 px-2 py-1 font-mono text-[10px] text-white/55">
+            + Add context
+          </span>
         </div>
-        <p className="mt-4 rounded-lg bg-white/[0.03] p-3 text-xs leading-relaxed text-white/45">
-          &ldquo;A B2B analytics dashboard. Users sign in with email + password, then see a real-time
-          usage chart. Admins can invite teammates and manage billing via Stripe.&rdquo;
-        </p>
       </div>
     </AppWindow>
   );
@@ -69,6 +72,30 @@ function GenerateMock() {
   );
 }
 
+function LearningMock() {
+  return (
+    <AppWindow breadcrumb="clariti › learning › checkout-flow">
+      <div className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] tracking-widest text-white/35">RUN COMPLETE</span>
+          <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300">
+            12 PASSED
+          </span>
+        </div>
+        <div className="my-4 h-px bg-white/10" />
+        <p className="font-mono text-[10px] font-semibold tracking-[0.18em] text-violet-300">LEARNING SAVED</p>
+        <div className="mt-2 space-y-2 rounded-xl border border-violet-400/25 bg-violet-500/4 p-3">
+          <p className="text-xs leading-relaxed text-white/70">Checkout opens a native payment sheet.</p>
+          <p className="border-t border-white/10 pt-2 text-xs leading-relaxed text-white/70">Billing settings are admin-only.</p>
+        </div>
+        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-white/40">
+          <span className="text-emerald-300">✓</span> Saved to project context
+        </p>
+      </div>
+    </AppWindow>
+  );
+}
+
 const STEPS = [
   {
     num: '01',
@@ -90,6 +117,13 @@ const STEPS = [
     title: 'Hit run. Watch it go.',
     body: 'Clariti finds your live app and works through every test — clicking, typing, checking — exactly like a human would. You get results you can trust, replay, and share.',
     Mock: () => <RunnerMockup animateLog />,
+  },
+  {
+    num: '04',
+    label: 'LEARNS FROM EVERY RUN',
+    title: 'Every run makes the next one smarter.',
+    body: 'After each run, Clariti turns what it learns into lasting project context—so it understands more of your app the next time it tests.',
+    Mock: LearningMock,
   },
 ];
 
@@ -121,7 +155,7 @@ export default function HowItWorks() {
   return (
     <section id="how-it-works" className="relative py-24">
       <HorizontalScrollSection
-        trackVh={380}
+        trackVh={500}
         mobileBreakpoint={0}
         header={
           <div className="mx-auto mb-10 max-w-6xl px-6">

@@ -8,7 +8,7 @@ const ROWS = [
   'Works on web, native & mobile',
   'No scripts to write or maintain',
   'Survives redesigns',
-  'Asks instead of failing silently',
+  'Takes guidance without starting over',
   'Pause & guide it mid-run',
 ];
 

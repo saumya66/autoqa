@@ -1,10 +1,7 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-
-> **STRICT STANDING INSTRUCTION FOR AI EDITORS AGENTS:** After any code change that the user has tested and verified, update this file to reflect the new state of the system. Keep every section accurate — remove outdated descriptions, update flow diagrams, and correct any file/endpoint references that have changed. This document is the source of truth for the codebase architecture.
-
-If the user asks you to build anything your job, is to ask them any relevant questions and then present them with a plan first and only if they approve go build it. 
+> **STANDING INSTRUCTION FOR AI AGENTS:** After any code change that the user has tested and verified, update this file to reflect the new state of the system. Keep every section accurate — remove outdated descriptions, update flow diagrams, and correct any file/endpoint references that have changed. This document is the source of truth for the codebase architecture.
 
 # Moonshot — Architecture & Flows Reference
 
@@ -36,6 +33,50 @@ Three independent services communicate to deliver the full product:
 │  - Calls cloud to save data │  │                                   │
 └─────────────────────────────┘  └───────────────────────────────────┘
 ```
+
+---
+
+## Running Locally (Dev)
+
+Each service has its own virtualenv (`backend/.venv`, `cloud-backend/.venv`). Ports matter: the local backend runs on **8000** (`HOST`/`PORT` in `backend/.env`), and the cloud backend must run on **8001** because `backend/.env` points `CLOUD_API_URL=http://localhost:8001`. The cloud backend config defaults to port 8000 (`cloud-backend/app/core/config.py`), which would collide with the local backend, so override it.
+
+**Local backend** (FastAPI + uvicorn, port 8000):
+
+```bash
+cd backend
+source .venv/bin/activate
+python main.py
+```
+
+**Cloud backend** (FastAPI + MongoDB, port 8001):
+
+```bash
+cd cloud-backend
+source .venv/bin/activate
+PORT=8001 python main.py
+```
+
+`PORT=8001` works because `Settings` is a pydantic `BaseSettings` — environment variables override the defaults. Alternatively, add `PORT=8001` to `cloud-backend/.env` and just run `python main.py`.
+
+**Frontend** (Vite dev server, port 5173):
+
+```bash
+cd frontend
+npm run dev
+```
+
+One-liners without activating the venvs:
+
+```bash
+backend/.venv/bin/python backend/main.py
+PORT=8001 cloud-backend/.venv/bin/python cloud-backend/main.py
+```
+
+Notes:
+
+- The cloud backend runs uvicorn with `reload=True`, so it auto-restarts on code changes; the local backend does not — restart it manually after edits.
+- On startup, the local backend triggers the macOS Screen Recording and Accessibility permission dialogs (see macOS Permissions). Both must be granted to the launching terminal/process for screenshots and mouse/keyboard control to work.
+- In local dev (browser) mode, `ANTHROPIC_API_KEY` must be uncommented in `backend/.env` — there is no Electron keychain IPC in the browser (see Anthropic API Key Management).
 
 ---
 
@@ -142,7 +183,7 @@ Guest users can "skip" auth (`skipped = true` in authStore) but cannot use cloud
 
 ### Flow 2 — Project Creation
 
-User fills project name + description + uploads images/text → AI processes them:
+User fills project name + description and uploads images/text → AI processes the context assets:
 
 ```
 Frontend (ProjectsSection)
@@ -152,8 +193,8 @@ Frontend (ProjectsSection)
 Local Backend (/cloud/project/create)
   1. Save images + texts as ContextItems  →  POST /api/v1/context-items/bulk (cloud)
   2. Run ImageContextRetrieverAgent on each image  →  extract what each screen shows
-  3. Run _SynthAgent with all image contexts + text notes  →  produce context_summary prose
-  4. POST /api/v1/projects (cloud)  →  save { name, description, context_summary }
+  3. Run _SynthAgent with all image contexts and text notes  →  produce context_summary prose
+  4. POST /api/v1/projects (cloud)  →  save { name, description, source_memory, context_summary }
   5. SSE done event  →  { project: { id, name, description, context_summary } }
 
 Frontend
@@ -169,18 +210,22 @@ Frontend
 User revisits the project context page and uploads new/updated images + text:
 
 ```
-Frontend (/app/projects/$projectId/context)
+Frontend (/app/projects/$projectId overview → Update context modal)
   ↓  POST /cloud/project/{id}/update-context (local backend SSE)
 
 Local Backend
   1. Delete old ContextItems for this project  →  DELETE /api/v1/context-items/by-project/{id} (cloud)
   2. Save new ContextItems  →  POST /api/v1/context-items/bulk (cloud)
-  3. Run ImageContextRetrieverAgent + _SynthAgent  →  new context_summary
+  3. Run ImageContextRetrieverAgent + _SynthAgent with the new sources  →  new context_summary
   4. PATCH /api/v1/projects/{id}  →  update context_summary on cloud
   5. SSE done event
 ```
 
+`source_memory` is updated independently with `PATCH /api/v1/projects/{id}` and does not regenerate `context_summary`.
+
 **Key file:** `backend/main.py` → `cloud_update_project_context` endpoint
+
+The standalone `/app/projects/{id}/context` route redirects to the project overview. Project context, context assets, and app memory are displayed on the project overview; only context assets open the regeneration modal.
 
 ---
 
@@ -280,8 +325,9 @@ Frontend (execute.tsx)
 
 testSuiteExecutionStore.startExecution()
   →  creates a fresh AbortController (_abortController)
+  →  creates a fresh browser UUID (`execution_id`) for this run
   →  POST /feature/{featureId}/execute (local backend SSE)
-     body: { window_title, provider: "claude", cloud_feature_id, cloud_user_id, cloud_token }
+     body: { execution_id, window_title, provider: "claude", cloud_feature_id, cloud_user_id, cloud_token }
 ```
 
 #### 5c — Execution SSE Stream
@@ -291,10 +337,11 @@ Local Backend (/feature/{featureId}/execute  →  execute_tests_stream generator
 
   PRE-LOOP: Build Claude system prompt (once, before iterating tests)
     1. Fetch feature.context_summary from cloud
-    2. Fetch project.context_summary from cloud (via feature.project_id)
+    2. Fetch project.context_summary and source_memory from cloud (via feature.project_id)
     3. Construct cu_system_prompt:
        - Agent role + instructions
        - Project context block
+       - Project owner memory block (when present; background for app understanding and navigation)
        - Feature context block
        - Pre-authorisation of [OPERATOR-MSG] guidance channel
 
@@ -302,7 +349,7 @@ Local Backend (/feature/{featureId}/execute  →  execute_tests_stream generator
     a. SSE: { event: "test_start", test_id, title, goal, test_number, total_tests }
     b. POST /api/v1/test-results/ (cloud) with status="running"  →  get cloud_result_id
        (early creation so steps can be appended in real-time)
-    c. Check abort_flags[context_id]  →  break if set
+    c. Check abort_flags[execution_id]  →  stop the whole suite if set
     d. Initialise ClaudeComputerUseAgent(system_prompt=cu_system_prompt)
     e. agent.start(goal, screenshot)  →  first action
     f. TURN LOOP (max 30 turns, each turn = 1 API call):
@@ -322,14 +369,26 @@ Local Backend (/feature/{featureId}/execute  →  execute_tests_stream generator
        - sleep(1.0) — wait for UI to settle
        - capture_window() → fresh screenshot
        - agent.step(tool_use_ids, screenshot) → next response  ← 1 API call for all N actions
-       - Check abort_flags[context_id]  →  break if set
-       - If is_done: break
+       - Check abort_flags[execution_id]  →  break if set
+       - If is_done: break; the executor's final text includes an execution summary,
+         directly observed app facts, operational learnings, and run-local state
     g. SSE: { event: "test_complete", test_id, status, conclusion }
     h. PATCH cloud TestResult (cloud_result_id) with final status, conclusion, steps_executed
 
   POST-LOOP:
+    PATCH the cloud TestRun with final counts and completion time
+    If the suite has meaningful logs and was not aborted:
+      1. `execution_learning.py` strips screenshots, coordinates, timestamps,
+         and other non-text payloads; it retains at most 60 representative
+         steps per test (first 30 + last 30)
+      2. Run ProjectContextLearnerAgent once with current project context,
+         feature context, and the bounded suite logs
+      3. Learner returns a complete revised project context that preserves
+         accurate existing knowledge and excludes run-local state
+      4. PATCH Project.context_summary; source_memory is never modified
+      5. SSE: context_learning → context_learned, or context_learning_warning
+         if this non-fatal update fails
     SSE: { event: "suite_complete", passed, failed, skipped, total }
-    POST TestRun to cloud
     Clean up all per-context state (abort_flags, pause_flags, events, etc.)
 
 Frontend (execute.tsx + testSuiteExecutionStore)
@@ -397,13 +456,23 @@ User submits guidance (or clicks "Skip & Resume"):
 Frontend
   →  isAbortPending = true  (immediate visual feedback)
   →  _abortController.abort()  →  kills SSE fetch stream on frontend
-  →  POST /feature/{id}/execute/abort
-  →  Backend: abort_flags[context_id] = True
+  →  POST /feature/{id}/execute/abort  { execution_id }
+  →  Backend verifies the submitted execution_id still matches the active run
+  →  Backend: abort_flags[execution_id] = {
+       reason, requested_at, requested_by, context_id
+     }
               unblocks any pending pause/guidance asyncio.Events
 
 After current step:
   →  Backend checks abort_flags  →  breaks execution loop
+  →  Outer suite loop stops; later tests are not started
   →  SSE stream ends (or frontend already disconnected)
+
+Stale abort protection:
+  →  Every run has a unique execution_id even when it reuses the same feature/context ID
+  →  An abort carrying an older execution_id is logged and ignored
+  →  Starting a new run marks any previous active execution as superseded
+  →  StreamingResponse BackgroundTask cleans abort/active state even if the SSE client disconnects
 
 Frontend store
   →  In-progress test marked as "skipped" immediately
@@ -442,6 +511,8 @@ The `cu_system_prompt` pre-authorises this channel:
 - `frontend/src/routes/app/execute.tsx`
 - `frontend/src/store/testSuiteExecutionStore.ts`
 - `backend/main.py` → `execute_tests_stream` endpoint
+- `backend/execution_learning.py` → bounded log construction, eligibility, and cloud-update orchestration
+- `backend/agents/project_context_learner_agent.py`
 - `backend/agents/claude_computer_use_agent.py`
 
 ---
@@ -567,6 +638,9 @@ Production execution agent. Uses Anthropic's native Computer Use beta to control
 - `step(tool_use_ids, screenshot_bytes)` — continues after executing actions; accepts a list of `tool_use_id`s (one per action in the previous response) and sends them all back with the same final screenshot
 - `inject_guidance(text)` — queues operator guidance to be sent in the next `step()` call as a top-level user message text block
 - Runs synchronous Anthropic API calls via `await asyncio.to_thread()` to avoid blocking the FastAPI event loop (critical for pause/abort to work)
+- Maintains the complete per-test Anthropic message history in `self.messages`; every `_call()` resends that history, including previous screenshot tool results
+- When `CLAUDE_CU_DEBUG_MESSAGES=true`, logs the sanitized request structure before each API call and response token usage afterward. Base64 image data is replaced by size metadata, but text goals and operator guidance remain visible and may be sensitive.
+- Enables Anthropic's automatic five-minute prompt cache on every Computer Use request via `cache_control={"type": "ephemeral"}`. Live verification showed `cache_read_input_tokens` increasing on later turns, confirming that the growing conversation prefix is served as discounted cache reads.
 
 **Default model:** `claude-haiku-4-5`
 **Beta flag:** `computer-use-2025-01-24`
@@ -593,8 +667,8 @@ Each action in a batch still gets its own individual `StepRecord` in the DB (own
 | `/health` | GET | Backend health check |
 | `/permissions` | GET | Check Screen Recording + Accessibility grants (from backend process perspective) |
 | `/permissions/request` | POST | Attempt to trigger macOS permission dialogs |
-| `/cloud/project/create` | POST (SSE) | Create project with AI context |
-| `/cloud/project/{id}/update-context` | POST (SSE) | Rebuild project context |
+| `/cloud/project/create` | POST (SSE) | Create project with AI context and optional pasted app memory |
+| `/cloud/project/{id}/update-context` | POST (SSE) | Rebuild project context and update optional pasted app memory |
 | `/cloud/feature/{id}/build-context` | POST (SSE) | Build or rebuild feature context |
 | `/cloud/feature/{id}/generate-tests` | POST (SSE) | Generate test cases via AI |
 | `/cloud/feature/{id}/save-tests` | POST | Save a set of test cases to cloud (called after generate) |
@@ -604,7 +678,7 @@ Each action in a batch still gets its own individual `StepRecord` in the DB (own
 | `/feature/{id}/execute/abort` | POST | Abort execution loop immediately |
 | `/feature/{id}/execute/{test_id}/guidance` | POST | Inject user guidance when agent is stuck |
 
-All SSE endpoints stream `data: { event, ...payload }\n\n` lines.
+All SSE endpoints stream `data: { event, ...payload }\n\n` lines. Execution additionally emits non-fatal `context_learning`, `context_learned`, and `context_learning_warning` events after suite tests finish.
 
 **`backend/cloud_client.py` — helpers for test run persistence:**
 
@@ -614,7 +688,7 @@ All SSE endpoints stream `data: { event, ...payload }\n\n` lines.
 | `append_test_result_step(result_id, step, token)` | Calls `POST /api/v1/test-results/{id}/steps` to atomically push one step dict |
 | `patch_test_result(result_id, token, **fields)` | PATCH final `status`, `conclusion`, `steps_executed` on completion |
 
-**Per-execution in-memory state (keyed by `context_id`):**
+**Per-execution in-memory state:**
 
 | Dict | Purpose |
 |------|---------|
@@ -623,9 +697,10 @@ All SSE endpoints stream `data: { event, ...payload }\n\n` lines.
 | `pause_guidance` | Optional guidance text to inject on resume |
 | `guidance_events` | `asyncio.Event` the loop awaits when agent is stuck |
 | `guidance_text` | Guidance text submitted by user for stuck agent |
-| `abort_flags` | Set to `True` to break the execution loop |
+| `active_execution_ids` | Maps reusable `context_id`/feature ID to the currently active unique `execution_id` |
+| `abort_flags` | Abort metadata keyed by unique `execution_id`; prevents an old run's abort from cancelling a newer run |
 
-All dicts are cleaned up after the execution generator finishes.
+Abort and active-run state are cleaned by a `StreamingResponse` background task on normal completion or SSE disconnect. Pause state remains keyed by `context_id` and is cleaned only when the finishing execution is still the active run.
 
 ---
 
@@ -634,7 +709,7 @@ All dicts are cleaned up after the execution generator finishes.
 | Model | Key Fields |
 |-------|------------|
 | `User` | `id`, `email`, `hashed_password` |
-| `Project` | `id`, `user_id`, `name`, `description`, `context_summary` |
+| `Project` | `id`, `user_id`, `name`, `description`, `source_memory`, `context_summary` |
 | `Feature` | `id`, `project_id`, `name`, `description`, `context_summary`, `status` |
 | `ContextItem` | `id`, `level` (project/feature), `level_id`, `type` (image/text), `content_b64`/`text` |
 | `TestCase` | `id`, `feature_id`, `test_key`, `title`, `goal`, `description`, `expected_result`, `priority`, `category` |
@@ -677,24 +752,48 @@ This shape is the contract between backend (SSE `step` events + DB writes) and f
 
 ## Coordinate Math (Claude CU — Critical)
 
-Claude CU uses **actual pixel coordinates** matching the logical window size. The backend resizes each screenshot to the window's logical dimensions before sending to Claude, so Claude's coordinates map 1:1 to window-local pixels with no additional scaling.
+Claude CU uses **actual pixel coordinates in the screenshot space declared by its Computer Use tool**. The screenshot sent to Claude is kept near Retina resolution for visual accuracy, so returned coordinates are scaled to the logical window size before being converted to global macOS coordinates.
+
+### Current screenshot-to-click flow
+
+1. `get_window_by_title()` provides the target window's logical macOS bounds: `left`, `top`, `width`, and `height`.
+2. `capture_window()` in `backend/windows.py` passes those bounds to `mss.grab()`. On a Retina display, the resulting PNG is normally 2× the logical dimensions in each direction.
+3. On `agent.start()`, `calculate_screenshot_dimensions()` chooses the largest API-safe image size while preserving aspect ratio. It follows Anthropic's standard-tier limits: maximum long edge `1568` and maximum `1,150,000` pixels.
+4. The Computer Use tool's `display_width_px` and `display_height_px` are set to those chosen screenshot dimensions. Every screenshot in that agent conversation is resized to this stable size, encoded as PNG/Base64, and sent to Claude.
+5. Claude returns coordinates in the higher-resolution screenshot space. `_call()` preserves each original coordinate as `model_coordinate` and scales it into a logical window-local `coordinate`. The same conversion is applied to click/move/scroll coordinates and drag start/end coordinates.
+6. `execute_claude_action()` adds the window origin to the logical window-local coordinate, then dispatches the resulting global coordinate through `pyautogui`.
+7. After all actions in the turn, the executor waits one second, captures a fresh screenshot, resizes it to the same stable model dimensions, and sends it to `agent.step()` so Claude can observe the result.
 
 ```python
-# In ClaudeComputerUseAgent — screenshot is resized to display_width x display_height
-# so Claude's (x, y) coordinates are directly window-local pixels.
+# Convert Claude's screenshot-space coordinate to logical window-local pixels:
+local_x = round(model_x * logical_width / sent_image_width)
+local_y = round(model_y * logical_height / sent_image_height)
 
-# To convert to global screen coordinates for pyautogui:
-global_x = window_left + action_x
-global_y = window_top  + action_y
+# Convert logical window-local coordinates to global macOS coordinates:
+global_x = window_left + local_x
+global_y = window_top  + local_y
 ```
 
-On Retina displays the raw `mss` screenshot is 2× the logical size. The `resize_screenshot()` helper in `claude_computer_use_agent.py` handles this by resizing to `(display_width, display_height)` before encoding.
+Example from the Android Emulator:
+
+```text
+Logical window:  left=1122, top=98, width=353, height=813
+Raw Retina PNG:  706 × 1626
+Sent to Claude:  680 × 1568
+Example Claude coordinate: model [480, 1450]
+Converted coordinate:      local [249, 752]
+Dispatched click:
+  global_x = 1122 + 249 = 1371
+  global_y =   98 + 752 = 850
+```
+
+Execution evidence logs include the model-space, logical window-local, and final global coordinates so visual-grounding failures can be distinguished from scaling or dispatch failures.
 
 ---
 
-## Human Click Pattern (Critical)
+## Click Dispatch
 
-Never use instant clicks — always simulate human timing:
+`execute_claude_action()` currently calls `human_click(gx, gy)` with its default `simple=True`, which dispatches an instant `pyautogui.click(x, y)`. The alternate human-like pattern remains available by calling `human_click(..., simple=False)`:
 
 ```python
 pyautogui.moveTo(x, y, duration=0.2)
@@ -928,7 +1027,7 @@ All TODOs below are **done**:
 **Build commands (current):**
 ```bash
 # 1. Build Python sidecar
-cd backend && .venv/bin/pyinstaller clariti-backend.spec --noconfirm && cd ..
+cd backend && .venv/bin/pyinstaller clariti-backend.spec --noconfirm
 # Output: backend/dist/clariti-backend
 
 # 2. Build Electron DMG
@@ -1035,15 +1134,3 @@ sudo tccutil reset ScreenCapture
 sudo tccutil reset Accessibility
 ```
 After running, macOS will show the native permission dialogs again on next use.
-
----
-
-## TODO
-
-### Landing Site SEO
-
-- [ ] Update `landingsite/public/og-image.png` with a more descriptive social preview, then replace the generic `og:image:alt` and `twitter:image:alt` values in `landingsite/src/layouts/BaseLayout.astro` with an accurate description of the new image.
-
-
-# BUILDING WITH AI
-If the user asks you to build anything your job, is to ask them any relevant questions and then present them with a plan first and only if they approve go build it. 

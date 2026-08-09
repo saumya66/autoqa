@@ -35,6 +35,20 @@ export const QuestionIcon = (p: IconProps) => (
   </svg>
 );
 
+export const EarIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M18 11.5a6 6 0 1 0-12 0c0 4 2.5 5.6 4.5 7.4.7.6 1 1.2 1 2.1v.5" />
+    <path d="M11 16.5c0-1.8 3-2.3 3-5a2 2 0 0 0-4 0" />
+  </svg>
+);
+
+export const MemoryIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M6 4.5A2.5 2.5 0 0 1 8.5 2H18v18l-4-2-4 2V4.5A2.5 2.5 0 0 0 7.5 2H6Z" />
+    <path d="M13 7h2.5M13 10h2.5" />
+  </svg>
+);
+
 export const GavelIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="m9 11 6-6M6.5 8.5 2 13M13 15l-4.5 4.5M15.5 5.5l3 3M8.5 12.5l3 3M4 20h8" />

@@ -2,14 +2,14 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import Eyebrow from './Eyebrow';
 import Reveal from './Reveal';
-import { EyeIcon, SparkIcon, ArrowRight, QuestionIcon, GavelIcon } from './Icons';
+import { ArrowRight, EarIcon, EyeIcon, MemoryIcon, SparkIcon } from './Icons';
 
 const NODES = [
   { key: 'SEE', Icon: EyeIcon, desc: 'Looks at the screen like a user.' },
   { key: 'THINK', Icon: SparkIcon, desc: 'Decides what to do next.' },
   { key: 'ACT', Icon: ArrowRight, desc: 'Clicks, types, moves through the app.' },
-  { key: 'ASK', Icon: QuestionIcon, desc: 'Asks when unsure — and lets you steer.' },
-  { key: 'JUDGE', Icon: GavelIcon, desc: 'Decides what passed and what broke.' },
+  { key: 'LISTEN', Icon: EarIcon, desc: 'Listens for your inputs.' },
+  { key: 'LEARN', Icon: MemoryIcon, desc: 'Learns from every run.' },
 ];
 
 const SIZE = 460;
@@ -36,7 +36,7 @@ export default function AgenticLoop() {
     <section className="relative mx-auto max-w-6xl overflow-hidden px-6 py-20 sm:py-28 lg:py-36">
       <div className="text-center">
         <Reveal className="flex justify-center">
-          <Eyebrow>HOW IT THINKS</Eyebrow>
+          <Eyebrow>UNDER THE HOOD.</Eyebrow>
         </Reveal>
         <Reveal delay={0.05}>
           <h2 className="mx-auto mt-5 max-w-2xl text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
@@ -45,9 +45,9 @@ export default function AgenticLoop() {
         </Reveal>
         <Reveal delay={0.1}>
           <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-white/55 sm:text-lg">
-            Under the hood, Clariti runs a tight loop — look at the screen, decide what to do, act,
-            ask if unsure, judge the result. The same loop your QA runs in their head, now running
-            on its own. And at any point, you can step in, correct it, and let it carry on.
+            Under the hood, Clariti runs a tight loop — it looks at the screen, decides what to do,
+            acts, listens for your inputs, and learns from every run. The same loop your QA runs
+            in their head, now running on its own.
           </p>
         </Reveal>
       </div>
@@ -126,8 +126,8 @@ export default function AgenticLoop() {
                     {n.key}
                   </span>
                 </motion.div>
-                {/* ASK → human branch */}
-                {n.key === 'ASK' && (
+                {/* LISTEN → user input */}
+                {n.key === 'LISTEN' && (
                   <motion.div
                     animate={{ opacity: isActive ? 1 : 0.3 }}
                     className="absolute left-1/2 top-full mt-2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/50"

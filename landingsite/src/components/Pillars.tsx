@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import Eyebrow from './Eyebrow';
-import { EyeIcon, SparkIcon, QuestionIcon, GavelIcon, CheckIcon, GlobeIcon, MonitorIcon, PhoneIcon } from './Icons';
+import { EyeIcon, SparkIcon, QuestionIcon, MemoryIcon, CheckIcon, GlobeIcon, MonitorIcon, PhoneIcon } from './Icons';
 import AppWindow from './AppWindow';
 
 // ── Per-pillar mockups ──────────────────────────────────────────────────────
@@ -151,33 +151,24 @@ function AnywhereMock() {
   );
 }
 
-function JudgeMock() {
-  const rows = [
-    { t: 'Sign in with valid credentials', ok: true },
-    { t: 'Dashboard renders under 2s', ok: true },
-    { t: 'Avatar upload rejects > 2MB', ok: false },
-  ];
+function LearningMock() {
   return (
-    <AppWindow breadcrumb="clariti › verdict › auth-flow.suite">
+    <AppWindow breadcrumb="clariti › learning › checkout-flow">
       <div className="p-5">
-        {rows.map((r) => (
-          <div key={r.t} className="flex items-center gap-3 border-b border-white/5 py-2.5 last:border-0">
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full ${r.ok ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}
-            >
-              {r.ok ? <CheckIcon className="h-3 w-3" /> : '✕'}
-            </span>
-            <span className="text-sm text-white/75">{r.t}</span>
-            <span
-              className={`ml-auto font-mono text-[11px] ${r.ok ? 'text-emerald-300' : 'text-rose-300'}`}
-            >
-              {r.ok ? 'PASS' : 'FAIL'}
-            </span>
-          </div>
-        ))}
-        <p className="mt-3 rounded-lg bg-white/[0.03] p-3 text-xs leading-relaxed text-white/50">
-          <span className="text-white/70">Why it failed:</span> a 3MB file uploaded without an error
-          — the size limit isn&apos;t enforced on the client.
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] tracking-widest text-white/35">RUN COMPLETE</span>
+          <span className="rounded-md border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 font-mono text-[10px] text-emerald-300">
+            12 PASSED
+          </span>
+        </div>
+        <div className="my-4 h-px bg-white/10" />
+        <p className="font-mono text-[10px] font-semibold tracking-[0.18em] text-violet-300">LEARNING SAVED</p>
+        <div className="mt-2 space-y-2 rounded-xl border border-violet-400/25 bg-violet-500/4 p-3">
+          <p className="text-xs leading-relaxed text-white/70">Checkout opens a native payment sheet.</p>
+          <p className="border-t border-white/10 pt-2 text-xs leading-relaxed text-white/70">Billing settings are admin-only.</p>
+        </div>
+        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-white/40">
+          <span className="text-emerald-300">✓</span> Saved to project context
         </p>
       </div>
     </AppWindow>
@@ -199,16 +190,16 @@ const PILLARS = [
     tag: 'Reasoning',
     Icon: SparkIcon,
     label: 'IT THINKS',
-    title: 'It figures out the next step on its own.',
-    body: 'No code to maintain. Clariti looks at where it is, decides what to do next as per the context it has, and thus it adapts even as your product changes. Redesign a page or rename a button — it just keeps going, unlike code tests.',
+    title: 'Built for changing products',
+    body: 'When a page is redesigned or a button is renamed, Clariti can reason through the new experience and continue toward the goal—reducing the need to constantly repair tests.',
     Mock: ThinkMock,
   },
   {
     tag: 'Human-in-the-loop',
     Icon: QuestionIcon,
-    label: 'IT ASKS',
-    title: 'You stay in the loop, and always in control.',
-    body: 'No silent failures, no guessing. When something\u2019s ambiguous, Clariti pauses and asks in plain English. And you can jump in anytime — interrupt a run, correct a step, and guide it in your own words, then let it carry on.',
+    label: 'IT LISTENS',
+    title: 'You’re always in control.',
+    body: 'Interrupt a run whenever you need to. Give Clariti new context, correct its course, or point it in the right direction in plain English—then let it continue toward the goal.',
     Mock: AskMock,
   },
   {
@@ -216,16 +207,16 @@ const PILLARS = [
     Icon: GlobeIcon,
     label: 'IT WORKS ANYWHERE',
     title: 'It runs anywhere your product does.',
-    body: 'Because Clariti works from what\u2019s on the screen, it isn\u2019t locked to the browser. Your web app, your desktop app, the mobile simulators your team already runs — Clariti tests them all. No separate tools, no separate scripts, no separate QA setup per platform.',
+    body: 'Your web app, your desktop app, the mobile simulators your team already runs — Clariti tests them all. No separate tools, no separate scripts, no separate QA setup per platform.',
     Mock: AnywhereMock,
   },
   {
-    tag: 'Verdict',
-    Icon: GavelIcon,
-    label: 'IT JUDGES',
-    title: 'It tells you what passed, what broke, and why.',
-    body: 'Clariti decides whether each flow actually worked and explains its reasoning. Every run is recorded step by step and store in cloud, so you can see exactly what it did anytime.',
-    Mock: JudgeMock,
+    tag: 'Learning',
+    Icon: MemoryIcon,
+    label: 'IT LEARNS',
+    title: 'Every run makes the next one smarter.',
+    body: 'Clariti learns from what it observes in each run and carries that context forward—so future tests start with a better understanding of your product.',
+    Mock: LearningMock,
   },
 ];
 

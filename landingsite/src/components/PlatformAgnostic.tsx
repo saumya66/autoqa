@@ -19,7 +19,7 @@ export default function PlatformAgnostic() {
       />
       <div className="relative z-10 mx-auto max-w-4xl px-6 text-center">
         <Reveal className="flex justify-center">
-          <Eyebrow>ONE AGENT, EVERY SURFACE</Eyebrow>
+          <Eyebrow>EVERY SURFACE</Eyebrow>
         </Reveal>
         <Reveal delay={0.05}>
           <h2 className="mx-auto mt-5 max-w-2xl text-[clamp(2rem,4.5vw,3.25rem)] font-extrabold leading-[1.05] tracking-tight text-white">
