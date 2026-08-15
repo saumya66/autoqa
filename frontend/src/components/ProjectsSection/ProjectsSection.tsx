@@ -197,11 +197,11 @@ export function ProjectsSection() {
       )}
 
       {!loading && !error && (
-        <section className="mt-10 flex flex-col items-center px-4 pb-2 pt-8 text-center sm:mt-12 sm:pt-10">
+        <section className="mt-6 flex flex-col items-center px-4 pb-2 pt-4 text-center sm:mt-8 sm:pt-6">
           <img
             src="/projects-footer.png"
             alt=""
-            className="w-48 max-w-full object-contain sm:w-56"
+            className="w-56 max-w-full object-contain sm:w-64"
           />
           <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">
             Start your next project!

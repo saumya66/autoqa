@@ -419,13 +419,13 @@ function ExecutePage() {
     : 'Execution Error';
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 gap-5 overflow-hidden bg-[#fafafd] p-4">
 
       {/* ── Left panel: test list ── */}
-      <aside className="w-80 shrink-0 flex flex-col border-r border-border bg-card overflow-hidden">
+      <aside className="flex w-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-[#ececf1] bg-white shadow-[0_2px_8px_rgba(15,15,25,0.05)]">
 
         {/* Back nav */}
-        <div className="px-4 pt-4 pb-0">
+        <div className="px-4 pb-0 pt-4">
           <Link
             to={backTo}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -436,14 +436,14 @@ function ExecutePage() {
         </div>
 
         {/* Header */}
-        <div className="px-5 pt-3 pb-4 border-b border-border">
+        <div className="border-b border-[#ececf1] px-5 pb-4 pt-3">
           <div className="flex items-center gap-2 mb-1">
             <span className={cn('size-2 rounded-full shrink-0', statusDot)} />
             <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {statusLabel}
             </span>
           </div>
-          <h2 className="text-base font-bold text-foreground leading-tight line-clamp-2">
+          <h2 className="text-base font-semibold leading-tight text-foreground line-clamp-2">
             {featureName || 'Test Suite'}
           </h2>
           {(windowTitle || isReplayMode) && (
@@ -460,13 +460,13 @@ function ExecutePage() {
                 {completedCount} / {totalCount}
               </span>
             </div>
-            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className="h-1.5 overflow-hidden rounded-full bg-[#f5f5f8]">
               <div
                 className={cn(
                   'h-full rounded-full transition-all duration-500',
                   status === 'complete' && suiteResult?.failed === 0 ? 'bg-emerald-500' :
                   status === 'aborted' ? 'bg-muted-foreground' :
-                  'bg-primary'
+                  'bg-violet-500'
                 )}
                 style={{ width: `${progressPct}%` }}
               />
@@ -538,15 +538,15 @@ function ExecutePage() {
                   }
                 }}
                 className={cn(
-                  'w-full flex items-center gap-3 px-5 py-2.5 transition-colors border-l-2 text-left',
+                  'flex w-full items-center gap-3 border-l-2 px-5 py-2.5 text-left transition-colors',
                   isSelected
-                    ? 'bg-primary/10 border-l-primary'
+                    ? 'border-l-violet-500 bg-violet-500/10'
                     : test.status === 'running'
-                    ? 'bg-primary/5 border-l-primary'
+                    ? 'border-l-violet-500 bg-violet-500/5'
                     : test.status === 'failed'
-                    ? 'border-l-red-500/60 hover:bg-muted/40'
+                    ? 'border-l-red-500/60 hover:bg-[#fafafd]'
                     : test.status === 'passed'
-                    ? 'border-l-emerald-500/40 hover:bg-muted/40'
+                    ? 'border-l-emerald-500/40 hover:bg-[#fafafd]'
                     : 'border-l-transparent cursor-default',
                   isClickable && !isSelected && 'cursor-pointer'
                 )}
@@ -571,12 +571,12 @@ function ExecutePage() {
         </div>
 
         {/* Actions footer */}
-        <div className="p-4 border-t border-border space-y-2">
+        <div className="space-y-2 border-t border-[#ececf1] p-4">
           {/* Replay mode — read-only, just a back link */}
           {isReplayMode && (
             <Link
               to={backTo}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 px-4 py-2 text-sm font-medium transition-colors"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[#ececf1] px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-[#f5f5f8] hover:text-foreground"
             >
               <ArrowLeft className="size-3.5" />
               Back to Test Suite
@@ -642,7 +642,7 @@ function ExecutePage() {
       </aside>
 
       {/* ── Right panel: current test + live log ── */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-background">
+      <main className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-[#fafafd]">
 
         {/* "Back to live" banner when user is browsing history during an active run */}
         {isViewingHistory && (
@@ -666,7 +666,7 @@ function ExecutePage() {
 
           {/* Test header */}
           {displayedTest ? (
-            <div className="px-8 pt-6 pb-5 border-b border-border">
+            <div className="px-2 pb-5 pt-1">
               {/* Key + test number + status badge in one row */}
               <div className="flex items-center gap-2 mb-2.5 flex-wrap">
                 <span className="font-mono text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
@@ -698,19 +698,19 @@ function ExecutePage() {
               </div>
 
               {/* Title */}
-              <h1 className="text-lg font-bold text-foreground leading-snug mb-1.5">
+              <h1 className="mb-1.5 text-xl font-semibold leading-snug text-foreground">
                 {displayedTest.title}
               </h1>
               {displayedTest.goal && (
-                <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl mb-4">
+                <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
                   {displayedTest.goal}
                 </p>
               )}
 
               {/* Expected + Result — compact row cards */}
-              <div className="space-y-2 max-w-2xl">
+              <div className="w-full space-y-2">
                 {displayedTest.expected_result && (
-                  <div className="flex items-start gap-3 rounded-xl bg-white border border-emerald-500/40 px-4 py-3">
+                  <div className="flex items-start gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/3 px-4 py-3">
                     <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600/70 mb-0.5">Expected</p>
@@ -771,10 +771,10 @@ function ExecutePage() {
           )}
 
           {/* Activity log */}
-          <div className="px-8 py-5 flex-1 flex flex-col min-h-0">
-            <div className="rounded-2xl border border-border bg-card flex flex-col overflow-hidden" style={{ minHeight: 260 }}>
+          <div className="flex min-h-0 flex-1 flex-col px-2 py-5">
+            <div className="flex flex-col overflow-hidden rounded-2xl border border-[#ececf1] bg-white shadow-[0_2px_8px_rgba(15,15,25,0.05)]" style={{ minHeight: 260 }}>
               {/* Log header */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+              <div className="flex shrink-0 items-center justify-between border-b border-[#ececf1] px-5 py-3">
                 <div className="flex items-center gap-2">
                   <ListChecks className="size-3.5 text-muted-foreground" />
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -783,8 +783,8 @@ function ExecutePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {isReplayMode && (
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary/70">
-                      <span className="size-1.5 rounded-full bg-primary/60 inline-block" />
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-600">
+                      <span className="inline-block size-1.5 rounded-full bg-violet-500" />
                       Replay
                     </span>
                   )}
